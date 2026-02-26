@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
-import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
-    PieChart, Pie, Cell, Legend
-} from 'recharts';
+import { ExpensePieChart } from '@/components/dashboard/ExpensePieChart';
+import { ExpenseBarChart } from '@/components/dashboard/ExpenseBarChart';
+import { RecentTransactionsList } from '@/components/dashboard/RecentTransactionsList';
 
 export default function DashboardPage() {
     const { user, householdId } = useAuthStore();
@@ -18,9 +17,6 @@ export default function DashboardPage() {
     // 차트 데이터 (임시)
     const [expenseByCategory, setExpenseByCategory] = useState<any[]>([]);
     const [recentTransactions, setRecentTransactions] = useState<any[]>([]);
-
-    // 차트 색상 (Tailwind 감성)
-    const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#06b6d4', '#0ea5e9'];
 
     useEffect(() => {
         fetchDashboardData();
@@ -135,29 +131,7 @@ export default function DashboardPage() {
                 <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
                     <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">카테고리별 지출 (당월)</h2>
                     <div className="h-64 sm:h-80">
-                        {expenseByCategory.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={expenseByCategory}
-                                        cx="50%"
-                                        cy="50%"
-                                        innerRadius={60}
-                                        outerRadius={90}
-                                        paddingAngle={3}
-                                        dataKey="value"
-                                    >
-                                        {expenseByCategory.map((_, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                        ))}
-                                    </Pie>
-                                    <RechartsTooltip formatter={(value: any) => Number(value).toLocaleString() + '원'} />
-                                    <Legend />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        ) : (
-                            <div className="flex h-full items-center justify-center text-sm text-gray-400">지출 데이터가 없습니다.</div>
-                        )}
+                        <ExpensePieChart data={expenseByCategory} />
                     </div>
                 </div>
 
@@ -165,19 +139,7 @@ export default function DashboardPage() {
                 <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
                     <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">지출 흐름 (Waterfall / Bar)</h2>
                     <div className="h-64 sm:h-80">
-                        {expenseByCategory.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={expenseByCategory} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                                    <XAxis type="number" />
-                                    <YAxis dataKey="name" type="category" width={80} />
-                                    <RechartsTooltip formatter={(value: any) => Number(value).toLocaleString() + '원'} />
-                                    <Bar dataKey="value" fill="#6366f1" radius={[0, 4, 4, 0]} />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        ) : (
-                            <div className="flex h-full items-center justify-center text-sm text-gray-400">데이터가 없습니다.</div>
-                        )}
+                        <ExpenseBarChart data={expenseByCategory} />
                     </div>
                 </div>
             </div>
@@ -188,28 +150,7 @@ export default function DashboardPage() {
                     <h3 className="text-base font-semibold leading-6 text-gray-900 dark:text-white">최근 거래 내역</h3>
                 </div>
                 <ul className="divide-y divide-gray-200 dark:divide-zinc-800">
-                    {recentTransactions.length === 0 ? (
-                        <li className="p-6 text-center text-sm text-gray-500">최근 거래 내역이 없습니다.</li>
-                    ) : (
-                        recentTransactions.map(trx => {
-                            // 간략한 금액 합산 (절대값)
-                            const amount = trx.lines.reduce((s: number, l: any) => s + Math.abs(l.amount), 0) / (trx.entry_type === 'transfer' ? 2 : 1);
-                            const isInc = trx.entry_type === 'income';
-                            const isExp = trx.entry_type === 'expense';
-
-                            return (
-                                <li key={trx.id} className="flex px-6 py-4 items-center justify-between hover:bg-gray-50 dark:hover:bg-zinc-900/50">
-                                    <div className="flex flex-col">
-                                        <span className="font-medium text-gray-900 dark:text-white">{trx.memo || trx.category?.name || '미분류'}</span>
-                                        <span className="text-xs text-gray-500">{new Date(trx.occurred_at).toLocaleDateString()}</span>
-                                    </div>
-                                    <span className={`font-semibold ${isInc ? 'text-blue-600' : isExp ? 'text-red-600' : 'text-gray-700 dark:text-gray-300'}`}>
-                                        {isInc ? '+' : isExp ? '-' : ''}{amount.toLocaleString()} 원
-                                    </span>
-                                </li>
-                            );
-                        })
-                    )}
+                    <RecentTransactionsList transactions={recentTransactions} />
                 </ul>
             </div>
         </div>
