@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
+import { useCategories } from '@/hooks/queries/useCategories';
+import { useQueryClient } from '@tanstack/react-query';
 import type { Category } from '../transactions/TransactionsPage';
 
 export interface BudgetTemplate {
@@ -12,9 +14,14 @@ export interface BudgetTemplate {
 
 export default function BudgetsPage() {
     const { user, householdId } = useAuthStore();
+    const queryClient = useQueryClient();
     const [templates, setTemplates] = useState<BudgetTemplate[]>([]);
-    const [categories, setCategories] = useState<Category[]>([]);
+    // const [categories, setCategories] = useState<Category[]>([]); // 훅으로 교체됨
     const [loading, setLoading] = useState(true);
+
+    // 카테고리 정보 훅
+    const { data: categoriesData } = useCategories();
+    const categories = (categoriesData as Category[]) || [];
 
     // 실적 데이터 (임시: 월별 합산치)
     const [performances, setPerformances] = useState<Record<number, number>>({});
@@ -33,13 +40,7 @@ export default function BudgetsPage() {
         if (!user || !householdId) return;
         setLoading(true);
 
-        // 1. 카테고리 목록 가져오기
-        const { data: catData } = await supabase
-            .from('categories')
-            .select('id, name, parent_id')
-            .eq('household_id', householdId);
-
-        setCategories((catData as Category[]) || []);
+        // 1. (생략) 카테고리 목록 가져오기 - 훅으로 분리됨
 
         // 2. 예산 템플릿 가져오기
         const { data: tplData } = await supabase
@@ -77,6 +78,8 @@ export default function BudgetsPage() {
         e.preventDefault();
         if (!user || !householdId || !selectedCategoryId || budgetAmount <= 0) return;
 
+        let actionError = null;
+
         if (editingTemplateId) {
             // 수정
             const { error } = await supabase
@@ -84,6 +87,7 @@ export default function BudgetsPage() {
                 .update({ amount: budgetAmount, updated_at: new Date().toISOString() })
                 .eq('id', editingTemplateId);
 
+            actionError = error;
             if (error) alert('수정 실패: ' + error.message);
         } else {
             // 신규
@@ -102,15 +106,23 @@ export default function BudgetsPage() {
                     amount: budgetAmount
                 }]);
 
+            actionError = error;
             if (error) alert('생성 실패: ' + error.message);
         }
 
-        setIsModalOpen(false);
-        setEditingTemplateId(null);
-        setSelectedCategoryId('');
-        setBudgetAmount(0);
-        fetchData(); // 갱신
-    };
+        if (!actionError) {
+            setIsModalOpen(false);
+            setEditingTemplateId(null);
+            setSelectedCategoryId('');
+            setBudgetAmount(0);
+            fetchData(); // 갱신
+
+            if (householdId) {
+                // 향후 Budgets 캐시 도입 시 ['budgets', householdId] 무효화 추가
+                queryClient.invalidateQueries({ queryKey: ['transactions', householdId] });
+            }
+        }
+    }; // handleSaveTemplate 끝
 
     const openEditModal = (template: BudgetTemplate) => {
         setEditingTemplateId(template.id);

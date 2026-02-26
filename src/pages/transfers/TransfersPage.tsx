@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
+import { useAccounts } from '@/hooks/queries/useAccounts';
+import { useQueryClient } from '@tanstack/react-query';
 
 export interface AutoTransferRule {
     id: number;
@@ -25,11 +27,16 @@ export interface AutoTransferInstance {
 }
 
 export default function TransfersPage() {
-    const { user } = useAuthStore();
+    const { user, householdId } = useAuthStore();
+    const queryClient = useQueryClient();
     const [rules, setRules] = useState<AutoTransferRule[]>([]);
     const [instances, setInstances] = useState<AutoTransferInstance[]>([]);
-    const [accounts, setAccounts] = useState<any[]>([]);
+    // const [accounts, setAccounts] = useState<any[]>([]); // 훅으로 교체됨
     const [loading, setLoading] = useState(true);
+
+    // 계좌 정보 훅
+    const { data: accountsData } = useAccounts();
+    const accounts = accountsData || [];
 
     // 규칙 생성 폼 상태
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -44,22 +51,14 @@ export default function TransfersPage() {
     }, [user]);
 
     const fetchData = async () => {
-        if (!user) return;
+        if (!user || !householdId) return;
         setLoading(true);
-
-        const { data: memberData } = await supabase
-            .from('household_members')
-            .select('household_id')
-            .eq('user_id', user.id)
-            .single();
-
-        if (!memberData) return;
 
         // 1. 규칙 목록 가져오기
         const { data: rulesData } = await supabase
             .from('auto_transfer_rules')
             .select('*, from_account:accounts!from_account_id(name), to_account:accounts!to_account_id(name)')
-            .eq('household_id', memberData.household_id)
+            .eq('household_id', householdId)
             .order('transfer_day');
 
         setRules(rulesData || []);
@@ -79,32 +78,17 @@ export default function TransfersPage() {
             setInstances(instanceData || []);
         }
 
-        // 3. 계좌 목록 (선택용)
-        const { data: accData } = await supabase
-            .from('accounts')
-            .select('id, name')
-            .eq('household_id', memberData.household_id);
-
-        setAccounts(accData || []);
         setLoading(false);
     };
 
     const handleCreateRule = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user || amount <= 0 || !fromAccountId || !toAccountId) return;
-
-        const { data: memberData } = await supabase
-            .from('household_members')
-            .select('household_id')
-            .eq('user_id', user.id)
-            .single();
-
-        if (!memberData) return;
+        if (!user || !householdId || amount <= 0 || !fromAccountId || !toAccountId) return;
 
         const { error } = await supabase
             .from('auto_transfer_rules')
             .insert([{
-                household_id: memberData.household_id,
+                household_id: householdId,
                 name: ruleName,
                 from_account_id: fromAccountId,
                 to_account_id: toAccountId,
@@ -117,6 +101,9 @@ export default function TransfersPage() {
             setRuleName('');
             setAmount(0);
             fetchData(); // 갱신
+            if (householdId) {
+                queryClient.invalidateQueries({ queryKey: ['transactions', householdId] }); // 향후 Transactions 페이지 연동 고려
+            }
         } else {
             alert('규칙 생성 실패: ' + error.message);
         }
@@ -169,6 +156,10 @@ export default function TransfersPage() {
             alert('상태 업데이트 실패: ' + updateError.message);
         } else {
             fetchData(); // 리프레시
+            if (householdId) {
+                queryClient.invalidateQueries({ queryKey: ['transactions', householdId] });
+                queryClient.invalidateQueries({ queryKey: ['accounts', householdId] });
+            }
         }
     };
 

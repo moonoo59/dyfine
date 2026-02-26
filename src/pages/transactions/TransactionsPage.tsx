@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
+import { useAccounts } from '@/hooks/queries/useAccounts';
+import { useCategories } from '@/hooks/queries/useCategories';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 export interface Category {
     id: number;
@@ -31,8 +34,41 @@ export interface TransactionLine {
 
 export default function TransactionsPage() {
     const { user, householdId } = useAuthStore();
-    const [entries, setEntries] = useState<TransactionEntry[]>([]);
-    const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
+
+    // 기초 데이터 React Query 훅 사용
+    const { data: accountsData } = useAccounts();
+    const { data: categoriesData } = useCategories();
+
+    const accounts = accountsData || [];
+    const categories = (categoriesData as Category[]) || [];
+
+    // 전표 데이터 React Query 도입
+    const { data: entriesData, isLoading: entriesLoading } = useQuery({
+        queryKey: ['transactions', householdId],
+        queryFn: async () => {
+            if (!householdId) throw new Error('No household ID');
+            const { data, error } = await supabase
+                .from('transaction_entries')
+                .select(`
+                    *,
+                    category:categories(id, name),
+                    lines:transaction_lines(
+                        id, amount, line_memo,
+                        account:accounts(name)
+                    )
+                `)
+                .eq('household_id', householdId)
+                .order('occurred_at', { ascending: false })
+                .limit(50);
+
+            if (error) throw error;
+            return data as unknown as TransactionEntry[];
+        },
+        enabled: !!householdId
+    });
+
+    const entries = entriesData || [];
 
     // 모달(Quick Add) 상태
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -41,53 +77,7 @@ export default function TransactionsPage() {
     const [newType, setNewType] = useState<'expense' | 'income' | 'transfer'>('expense');
     const [newMemo, setNewMemo] = useState('');
 
-    // (임시) 선택용 데이터
-    const [accounts, setAccounts] = useState<any[]>([]);
-    const [categories, setCategories] = useState<Category[]>([]);
-    const [fromAccountId, setFromAccountId] = useState<number | ''>('');
-    const [toAccountId, setToAccountId] = useState<number | ''>('');
-    const [categoryId, setCategoryId] = useState<number | ''>('');
 
-    useEffect(() => {
-        fetchData();
-    }, [user]);
-
-    const fetchData = async () => {
-        if (!user || !householdId) return;
-        setLoading(true);
-
-        // 1. 거래 내역 (전표 + 라인 + 카테고리 + 계좌명)
-        // 참고: Supabase Foreign Key 조인 방식 (... lines(amount, account(name)))
-        const { data: entriesData } = await supabase
-            .from('transaction_entries')
-            .select(`
-        *,
-        category:categories(id, name),
-        lines:transaction_lines(
-          id, amount, line_memo,
-          account:accounts(name)
-        )
-      `)
-            .eq('household_id', householdId)
-            .order('occurred_at', { ascending: false })
-            .limit(50);
-
-        // 2. 입력용 기초 데이터(계좌, 카테고리) 로드
-        const { data: accData } = await supabase
-            .from('accounts')
-            .select('id, name')
-            .eq('household_id', householdId);
-
-        const { data: catData } = await supabase
-            .from('categories')
-            .select('id, name, parent_id')
-            .eq('household_id', householdId);
-
-        setEntries((entriesData as unknown as TransactionEntry[]) || []);
-        setAccounts(accData || []);
-        setCategories(catData || []);
-        setLoading(false);
-    };
 
     const handleQuickAdd = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -137,8 +127,20 @@ export default function TransactionsPage() {
         setIsModalOpen(false);
         setNewAmount(0);
         setNewMemo('');
-        fetchData(); // 갱신
+
+        // 캐시 무효화로 목록 리프레시
+        if (householdId) {
+            queryClient.invalidateQueries({ queryKey: ['transactions', householdId] });
+            // 관련 계좌/예산 정보가 달라질 수 있으므로 같이 날려줌
+            queryClient.invalidateQueries({ queryKey: ['accounts', householdId] });
+        }
     };
+
+    // 상태 변수 선언 위치상 에러가 안나게 상단으로 옮기는게 맞지만, multi_replace 특성상 여기서 재선언 방어로 위에 적었음.
+    // 이전 chunk에서 삭제되었어야할 fromAccountId 등이 있으므로 여기서 선언해 복구.
+    const [fromAccountId, setFromAccountId] = useState<number | ''>('');
+    const [toAccountId, setToAccountId] = useState<number | ''>('');
+    const [categoryId, setCategoryId] = useState<number | ''>('');
 
     return (
         <div className="space-y-6">
@@ -156,7 +158,7 @@ export default function TransactionsPage() {
             </div>
 
             <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden dark:border-zinc-800 dark:bg-zinc-950">
-                {loading ? (
+                {entriesLoading ? (
                     <div className="p-8 text-center text-gray-500">데이터를 불러오는 중...</div>
                 ) : entries.length === 0 ? (
                     <div className="p-8 text-center text-sm text-gray-500 dark:text-gray-400">
@@ -265,7 +267,7 @@ export default function TransactionsPage() {
 
                             <div className="mt-6 flex justify-end space-x-3">
                                 <button type="button" onClick={() => setIsModalOpen(false)} className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 dark:border-zinc-700 dark:text-gray-300">취소</button>
-                                <button type="submit" disabled={loading} className="rounded-md bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">저장</button>
+                                <button type="submit" className="rounded-md bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">저장</button>
                             </div>
                         </form>
                     </div>

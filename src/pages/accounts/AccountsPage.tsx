@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
+import { useAccounts } from '@/hooks/queries/useAccounts';
+import { useQueryClient } from '@tanstack/react-query';
 
 export interface Account {
     id: number;
@@ -22,10 +24,12 @@ export interface AccountGroup {
 }
 
 export default function AccountsPage() {
-    const { user } = useAuthStore();
-    const [accounts, setAccounts] = useState<Account[]>([]);
-    // const [groups, setGroups] = useState<AccountGroup[]>([]); // 임시 미사용
-    const [loading, setLoading] = useState(true);
+    const { user, householdId } = useAuthStore();
+    const queryClient = useQueryClient();
+
+    // React Query
+    const { data: accountsData, isLoading: accountsLoading } = useAccounts();
+    const accounts = accountsData || [];
 
     // 모달 상태
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -33,58 +37,14 @@ export default function AccountsPage() {
     const [newAccountType, setNewAccountType] = useState<'bank' | 'brokerage' | 'virtual' | 'external'>('bank');
     const [newOpeningBalance, setNewOpeningBalance] = useState<number>(0);
 
-    useEffect(() => {
-        fetchAccountsAndGroups();
-    }, [user]);
-
-    const fetchAccountsAndGroups = async () => {
-        if (!user) return;
-        setLoading(true);
-
-        // 현재 유저의 가구 ID 확인
-        const { data: memberData } = await supabase
-            .from('household_members')
-            .select('household_id')
-            .eq('user_id', user.id)
-            .single();
-
-        if (!memberData) return;
-
-        // 계좌 그룹 가져오기 (향후 UI 연결용)
-        const { } = await supabase
-            .from('account_groups')
-            .select('*')
-            .eq('household_id', memberData.household_id)
-            .order('sort_order');
-
-        // 계좌 가져오기
-        const { data: accountsData } = await supabase
-            .from('accounts')
-            .select('*')
-            .eq('household_id', memberData.household_id)
-            .order('id');
-
-        // setGroups(groupsData || []);
-        setAccounts(accountsData || []);
-        setLoading(false);
-    };
-
     const handleCreateAccount = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user || !newAccountName.trim()) return;
-
-        const { data: memberData } = await supabase
-            .from('household_members')
-            .select('household_id')
-            .eq('user_id', user.id)
-            .single();
-
-        if (!memberData) return;
+        if (!user || !householdId || !newAccountName.trim()) return;
 
         const { error } = await supabase
             .from('accounts')
             .insert([{
-                household_id: memberData.household_id,
+                household_id: householdId,
                 name: newAccountName,
                 account_type: newAccountType,
                 opening_balance: newOpeningBalance,
@@ -95,7 +55,11 @@ export default function AccountsPage() {
             setIsModalOpen(false);
             setNewAccountName('');
             setNewOpeningBalance(0);
-            fetchAccountsAndGroups(); // 리스트 갱신
+
+            // 캐시 강제 갱신
+            if (householdId) {
+                queryClient.invalidateQueries({ queryKey: ['accounts', householdId] });
+            }
         } else {
             alert('계좌 생성 실패: ' + error.message);
         }
@@ -112,7 +76,7 @@ export default function AccountsPage() {
         }
     };
 
-    if (loading) {
+    if (accountsLoading) {
         return <div className="text-zinc-500">데이터를 불러오는 중...</div>;
     }
 
