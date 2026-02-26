@@ -117,46 +117,37 @@ export default function TransactionsPage() {
         // Income: 입금계좌(+), 카테고리(Entry)
         // Transfer: 출금계좌(-), 입금계좌(+)
 
-        // 1. Entry 생성
-        const { data: entryData, error: entryError } = await supabase
-            .from('transaction_entries')
-            .insert([{
-                household_id: memberData.household_id,
-                occurred_at: newDate,
-                entry_type: newType,
-                category_id: categoryId || null,
-                memo: newMemo,
-                source: 'manual',
-                created_by: user.id
-            }])
-            .select('id')
-            .single();
+        // 1. Lines 데이터 준비
+        const linesToInsert = [];
+        if (newType === 'expense' && fromAccountId) {
+            linesToInsert.push({ account_id: fromAccountId, amount: -newAmount });
+        } else if (newType === 'income' && toAccountId) {
+            linesToInsert.push({ account_id: toAccountId, amount: newAmount });
+        } else if (newType === 'transfer' && fromAccountId && toAccountId) {
+            linesToInsert.push({ account_id: fromAccountId, amount: -newAmount });
+            linesToInsert.push({ account_id: toAccountId, amount: newAmount });
+        }
 
-        if (entryError || !entryData) {
-            alert('전표 생성 실패: ' + entryError?.message);
+        if (linesToInsert.length === 0) {
+            alert('계좌를 확인해주세요.');
             return;
         }
 
-        // 2. Lines 생성
-        const linesToInsert = [];
-        if (newType === 'expense' && fromAccountId) {
-            linesToInsert.push({ entry_id: entryData.id, account_id: fromAccountId, amount: -newAmount });
-        } else if (newType === 'income' && toAccountId) {
-            linesToInsert.push({ entry_id: entryData.id, account_id: toAccountId, amount: newAmount });
-        } else if (newType === 'transfer' && fromAccountId && toAccountId) {
-            linesToInsert.push({ entry_id: entryData.id, account_id: fromAccountId, amount: -newAmount });
-            linesToInsert.push({ entry_id: entryData.id, account_id: toAccountId, amount: newAmount });
-        }
+        // 2. RPC (트랜잭션) 호출
+        const { error: rpcError } = await supabase.rpc('create_transaction', {
+            p_household_id: memberData.household_id,
+            p_occurred_at: newDate,
+            p_entry_type: newType,
+            p_category_id: categoryId || null,
+            p_memo: newMemo,
+            p_source: 'manual',
+            p_created_by: user.id,
+            p_lines: linesToInsert
+        });
 
-        if (linesToInsert.length > 0) {
-            const { error: linesError } = await supabase
-                .from('transaction_lines')
-                .insert(linesToInsert);
-
-            if (linesError) {
-                alert('전표 라인 생성 실패: ' + linesError.message);
-                // 트랜잭션 롤백 처리를 위해 entry 삭제 로직이 필요하나 MVP에서는 생략
-            }
+        if (rpcError) {
+            alert('전표 생성 실패 (RPC Error): ' + rpcError.message);
+            return;
         }
 
         setIsModalOpen(false);
