@@ -4,8 +4,11 @@ import { useAuthStore } from '@/store/authStore';
 import { supabase } from '@/lib/supabase/client';
 import LoginPage from '@/pages/auth/LoginPage';
 import OnboardingPage from '@/pages/onboarding/OnboardingPage';
+import AppLayout from '@/components/layout/AppLayout';
 
-const Dashboard = () => <div className="p-8 text-2xl font-bold">Dashboard (Protected & Household Assigned)</div>;
+// 임시 페이지들 (각 페이지 컴포넌트 개발 시 교체)
+const Dashboard = () => <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">Dashboard 화면</div>;
+const AccountsPage = () => <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">계좌 관리 모듈</div>;
 const Loading = () => <div className="flex h-screen items-center justify-center text-lg font-medium text-zinc-500">Loading...</div>;
 
 function App() {
@@ -57,18 +60,18 @@ function App() {
                 />
 
                 {/* 로그인 유저는 Onboarding 여부에 따라 라우팅 */}
-                <Route
-                    path="/"
-                    element={
-                        !user ? (
-                            <Navigate to="/login" replace />
-                        ) : !hasHousehold ? (
-                            <OnboardingPage onComplete={() => setHasHousehold(true)} />
-                        ) : (
-                            <Dashboard />
-                        )
-                    }
-                />
+                {!user ? (
+                    <Route path="*" element={<Navigate to="/login" replace />} />
+                ) : !hasHousehold ? (
+                    <Route path="*" element={<OnboardingPage onComplete={() => setHasHousehold(true)} />} />
+                ) : (
+                    <Route path="/" element={<AppLayout />}>
+                        <Route index element={<Dashboard />} />
+                        <Route path="accounts" element={<AccountsPage />} />
+                        {/* 추후 추가될 라우트: transactions, transfers, budgets */}
+                        <Route path="*" element={<Navigate to="/" replace />} />
+                    </Route>
+                )}
             </Routes>
         </div>
     );
