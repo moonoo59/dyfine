@@ -8,6 +8,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import AccountsPage from '@/pages/accounts/AccountsPage';
 import TransactionsPage from '@/pages/transactions/TransactionsPage';
 import TransfersPage from '@/pages/transfers/TransfersPage';
+import BudgetsPage from '@/pages/budgets/BudgetsPage';
 
 // 임시 대시보드 페이지 (추후 구현)
 const Dashboard = () => <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">Dashboard 화면</div>;
@@ -72,7 +73,7 @@ function App() {
                         <Route path="accounts" element={<AccountsPage />} />
                         <Route path="transactions" element={<TransactionsPage />} />
                         <Route path="transfers" element={<TransfersPage />} />
-                        {/* 추후 추가될 라우트: budgets */}
+                        <Route path="budgets" element={<BudgetsPage />} />
                         <Route path="*" element={<Navigate to="/" replace />} />
                     </Route>
                 )}
