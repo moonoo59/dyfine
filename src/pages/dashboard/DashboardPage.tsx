@@ -90,7 +90,7 @@ export default function DashboardPage() {
         setMonthlyExpense(expSum);
 
         // 차트 데이터 포맷팅
-        const pieData = Object.keys(catExpMap).map(key => ({
+        const pieData: { name: string; value: number }[] = Object.keys(catExpMap).map(key => ({
             name: key,
             value: catExpMap[key]
         })).sort((a, b) => b.value - a.value);
@@ -159,7 +159,7 @@ export default function DashboardPage() {
                                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                         ))}
                                     </Pie>
-                                    <RechartsTooltip formatter={(value: number) => value.toLocaleString() + '원'} />
+                                    <RechartsTooltip formatter={(value: any) => Number(value).toLocaleString() + '원'} />
                                     <Legend />
                                 </PieChart>
                             </ResponsiveContainer>
@@ -179,7 +179,7 @@ export default function DashboardPage() {
                                     <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                                     <XAxis type="number" />
                                     <YAxis dataKey="name" type="category" width={80} />
-                                    <RechartsTooltip formatter={(value: number) => value.toLocaleString() + '원'} />
+                                    <RechartsTooltip formatter={(value: any) => Number(value).toLocaleString() + '원'} />
                                     <Bar dataKey="value" fill="#6366f1" radius={[0, 4, 4, 0]} />
                                 </BarChart>
                             </ResponsiveContainer>
