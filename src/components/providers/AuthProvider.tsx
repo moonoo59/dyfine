@@ -4,13 +4,23 @@ import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const { setUser, setSession, setIsLoading } = useAuthStore();
+    const { setUser, setSession, setIsLoading, setHouseholdId } = useAuthStore();
 
     useEffect(() => {
+        const fetchHouseholdId = async (userId: string) => {
+            const { data } = await supabase
+                .from('household_members')
+                .select('household_id')
+                .eq('user_id', userId)
+                .single();
+            if (data) setHouseholdId(data.household_id);
+        };
+
         // 앱 초기화 시 현재 세션 가져오기
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
             setUser(session?.user ?? null);
+            if (session?.user) fetchHouseholdId(session.user.id);
             setIsLoading(false);
         });
 
@@ -20,11 +30,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
             setSession(session);
             setUser(session?.user ?? null);
+            if (session?.user) {
+                fetchHouseholdId(session.user.id);
+            } else {
+                setHouseholdId(null);
+            }
             setIsLoading(false);
         });
 
         return () => subscription.unsubscribe();
-    }, [setSession, setUser, setIsLoading]);
+    }, [setSession, setUser, setIsLoading, setHouseholdId]);
 
     return <>{children}</>;
 }

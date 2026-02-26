@@ -30,7 +30,7 @@ export interface TransactionLine {
 }
 
 export default function TransactionsPage() {
-    const { user } = useAuthStore();
+    const { user, householdId } = useAuthStore();
     const [entries, setEntries] = useState<TransactionEntry[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -53,16 +53,8 @@ export default function TransactionsPage() {
     }, [user]);
 
     const fetchData = async () => {
-        if (!user) return;
+        if (!user || !householdId) return;
         setLoading(true);
-
-        const { data: memberData } = await supabase
-            .from('household_members')
-            .select('household_id')
-            .eq('user_id', user.id)
-            .single();
-
-        if (!memberData) return;
 
         // 1. 거래 내역 (전표 + 라인 + 카테고리 + 계좌명)
         // 참고: Supabase Foreign Key 조인 방식 (... lines(amount, account(name)))
@@ -76,7 +68,7 @@ export default function TransactionsPage() {
           account:accounts(name)
         )
       `)
-            .eq('household_id', memberData.household_id)
+            .eq('household_id', householdId)
             .order('occurred_at', { ascending: false })
             .limit(50);
 
@@ -84,12 +76,12 @@ export default function TransactionsPage() {
         const { data: accData } = await supabase
             .from('accounts')
             .select('id, name')
-            .eq('household_id', memberData.household_id);
+            .eq('household_id', householdId);
 
         const { data: catData } = await supabase
             .from('categories')
             .select('id, name, parent_id')
-            .eq('household_id', memberData.household_id);
+            .eq('household_id', householdId);
 
         setEntries((entriesData as unknown as TransactionEntry[]) || []);
         setAccounts(accData || []);
@@ -99,18 +91,10 @@ export default function TransactionsPage() {
 
     const handleQuickAdd = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user || newAmount <= 0) {
-            alert('금액은 0보다 커야 합니다.');
+        if (!user || !householdId || newAmount <= 0) {
+            alert('금 액은 0보다 커야 합니다.');
             return;
         }
-
-        const { data: memberData } = await supabase
-            .from('household_members')
-            .select('household_id')
-            .eq('user_id', user.id)
-            .single();
-
-        if (!memberData) return;
 
         // 복식부기 로직 구성 (Lines 합계 = 0)
         // Expense: 출금계좌(-), 카테고리(Entry)
@@ -135,7 +119,7 @@ export default function TransactionsPage() {
 
         // 2. RPC (트랜잭션) 호출
         const { error: rpcError } = await supabase.rpc('create_transaction', {
-            p_household_id: memberData.household_id,
+            p_household_id: householdId,
             p_occurred_at: newDate,
             p_entry_type: newType,
             p_category_id: categoryId || null,

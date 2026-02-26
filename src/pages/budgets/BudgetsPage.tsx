@@ -11,7 +11,7 @@ export interface BudgetTemplate {
 }
 
 export default function BudgetsPage() {
-    const { user } = useAuthStore();
+    const { user, householdId } = useAuthStore();
     const [templates, setTemplates] = useState<BudgetTemplate[]>([]);
     const [categories, setCategories] = useState<Category[]>([]);
     const [loading, setLoading] = useState(true);
@@ -30,22 +30,14 @@ export default function BudgetsPage() {
     }, [user]);
 
     const fetchData = async () => {
-        if (!user) return;
+        if (!user || !householdId) return;
         setLoading(true);
-
-        const { data: memberData } = await supabase
-            .from('household_members')
-            .select('household_id')
-            .eq('user_id', user.id)
-            .single();
-
-        if (!memberData) return;
 
         // 1. 카테고리 목록 가져오기
         const { data: catData } = await supabase
             .from('categories')
             .select('id, name, parent_id')
-            .eq('household_id', memberData.household_id);
+            .eq('household_id', householdId);
 
         setCategories((catData as Category[]) || []);
 
@@ -53,7 +45,7 @@ export default function BudgetsPage() {
         const { data: tplData } = await supabase
             .from('budget_templates')
             .select('*, category:categories(id, name, parent_id)')
-            .eq('household_id', memberData.household_id);
+            .eq('household_id', householdId);
 
         setTemplates((tplData as unknown as BudgetTemplate[]) || []);
 
@@ -63,7 +55,7 @@ export default function BudgetsPage() {
         const { data: entryData } = await supabase
             .from('transaction_entries')
             .select('category_id, lines:transaction_lines(amount)')
-            .eq('household_id', memberData.household_id)
+            .eq('household_id', householdId)
             .eq('entry_type', 'expense')
             .gte('occurred_at', startOfMonth);
 
@@ -83,15 +75,7 @@ export default function BudgetsPage() {
 
     const handleSaveTemplate = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user || !selectedCategoryId || budgetAmount <= 0) return;
-
-        const { data: memberData } = await supabase
-            .from('household_members')
-            .select('household_id')
-            .eq('user_id', user.id)
-            .single();
-
-        if (!memberData) return;
+        if (!user || !householdId || !selectedCategoryId || budgetAmount <= 0) return;
 
         if (editingTemplateId) {
             // 수정
@@ -113,7 +97,7 @@ export default function BudgetsPage() {
             const { error } = await supabase
                 .from('budget_templates')
                 .insert([{
-                    household_id: memberData.household_id,
+                    household_id: householdId,
                     category_id: selectedCategoryId,
                     amount: budgetAmount
                 }]);

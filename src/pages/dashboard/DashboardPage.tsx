@@ -7,7 +7,7 @@ import {
 } from 'recharts';
 
 export default function DashboardPage() {
-    const { user } = useAuthStore();
+    const { user, householdId } = useAuthStore();
     const [loading, setLoading] = useState(true);
 
     // 대시보드 요약 지표 데이터
@@ -27,16 +27,8 @@ export default function DashboardPage() {
     }, [user]);
 
     const fetchDashboardData = async () => {
-        if (!user) return;
+        if (!user || !householdId) return;
         setLoading(true);
-
-        const { data: memberData } = await supabase
-            .from('household_members')
-            .select('household_id')
-            .eq('user_id', user.id)
-            .single();
-
-        if (!memberData) return;
 
         // 1. 총 자산 (모든 활성 계좌의 현재 잔액 합산)
         // * 주의: MVP 단계에서는 ledger 뷰가 없으므로 accounts 테이블의 opening_balance만 가져오거나 
@@ -44,7 +36,7 @@ export default function DashboardPage() {
         const { data: accData } = await supabase
             .from('accounts')
             .select('opening_balance')
-            .eq('household_id', memberData.household_id)
+            .eq('household_id', householdId)
             .eq('is_active', true);
 
         // 이 부분은 실무에선 백엔드 뷰나 복잡한 누적 쿼리를 써야 하나 MVP 시연용 스텁 로직임
@@ -58,7 +50,7 @@ export default function DashboardPage() {
         const { data: incomeData } = await supabase
             .from('transaction_entries')
             .select('lines:transaction_lines(amount)')
-            .eq('household_id', memberData.household_id)
+            .eq('household_id', householdId)
             .eq('entry_type', 'income')
             .gte('occurred_at', startOfMonth);
 
@@ -72,7 +64,7 @@ export default function DashboardPage() {
         const { data: expData } = await supabase
             .from('transaction_entries')
             .select('category_id, category:categories(name), lines:transaction_lines(amount)')
-            .eq('household_id', memberData.household_id)
+            .eq('household_id', householdId)
             .eq('entry_type', 'expense')
             .gte('occurred_at', startOfMonth);
 
@@ -101,7 +93,7 @@ export default function DashboardPage() {
         const { data: recentTrx } = await supabase
             .from('transaction_entries')
             .select('id, occurred_at, entry_type, memo, category:categories(name), lines:transaction_lines(amount)')
-            .eq('household_id', memberData.household_id)
+            .eq('household_id', householdId)
             .order('occurred_at', { ascending: false })
             .limit(5);
 
