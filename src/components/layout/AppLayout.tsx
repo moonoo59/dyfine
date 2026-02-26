@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
@@ -43,8 +43,8 @@ export default function AppLayout() {
                                             key={item.name}
                                             to={item.path}
                                             className={`inline-flex items-center border-b-2 px-1 pt-1 text-sm font-medium ${isActive
-                                                    ? 'border-indigo-500 text-gray-900 dark:text-white'
-                                                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                                                ? 'border-indigo-500 text-gray-900 dark:text-white'
+                                                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
                                                 }`}
                                         >
                                             {item.name}
@@ -100,8 +100,8 @@ export default function AppLayout() {
                                         key={item.name}
                                         to={item.path}
                                         className={`block border-l-4 py-2 pl-3 pr-4 text-base font-medium ${isActive
-                                                ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-zinc-800 dark:text-white'
-                                                : 'border-transparent text-gray-500 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-zinc-800 dark:hover:text-gray-300'
+                                            ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-zinc-800 dark:text-white'
+                                            : 'border-transparent text-gray-500 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-zinc-800 dark:hover:text-gray-300'
                                             }`}
                                     >
                                         {item.name}

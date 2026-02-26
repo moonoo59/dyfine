@@ -5,10 +5,10 @@ import { supabase } from '@/lib/supabase/client';
 import LoginPage from '@/pages/auth/LoginPage';
 import OnboardingPage from '@/pages/onboarding/OnboardingPage';
 import AppLayout from '@/components/layout/AppLayout';
+import AccountsPage from '@/pages/accounts/AccountsPage';
 
-// 임시 페이지들 (각 페이지 컴포넌트 개발 시 교체)
+// 임시 대시보드 페이지 (추후 구현)
 const Dashboard = () => <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">Dashboard 화면</div>;
-const AccountsPage = () => <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">계좌 관리 모듈</div>;
 const Loading = () => <div className="flex h-screen items-center justify-center text-lg font-medium text-zinc-500">Loading...</div>;
 
 function App() {
