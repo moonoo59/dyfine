@@ -6,6 +6,7 @@ import { useBudgets } from '@/hooks/queries/useBudgets';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Category } from '../transactions/TransactionsPage';
 import CurrencyInput from '@/components/ui/CurrencyInput';
+import MonthPicker from '@/components/ui/MonthPicker';
 
 /**
  * 예산 관리 페이지 컴포넌트
@@ -37,26 +38,10 @@ export default function BudgetsPage() {
     const [selectedCategoryId, setSelectedCategoryId] = useState<number | ''>('');
     const [budgetAmount, setBudgetAmount] = useState<number>(0);
 
-    // 월 이동 헬퍼 함수
-    const goToPrevMonth = () => {
-        if (selectedMonth === 1) {
-            setSelectedYear(y => y - 1);
-            setSelectedMonth(12);
-        } else {
-            setSelectedMonth(m => m - 1);
-        }
-    };
-    const goToNextMonth = () => {
-        if (selectedMonth === 12) {
-            setSelectedYear(y => y + 1);
-            setSelectedMonth(1);
-        } else {
-            setSelectedMonth(m => m + 1);
-        }
-    };
-    const goToCurrentMonth = () => {
-        setSelectedYear(now.getFullYear());
-        setSelectedMonth(now.getMonth() + 1);
+    // 월 변경 핸들러 (MonthPicker에서 호출)
+    const handleMonthChange = (y: number, m: number) => {
+        setSelectedYear(y);
+        setSelectedMonth(m);
     };
 
     /**
@@ -158,22 +143,8 @@ export default function BudgetsPage() {
                 </button>
             </div>
 
-            {/* 월 선택기 */}
-            <div className="flex items-center justify-center space-x-4">
-                <button onClick={goToPrevMonth} className="rounded-md p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-zinc-800 dark:text-gray-400">
-                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-                    </svg>
-                </button>
-                <button onClick={goToCurrentMonth} className="text-lg font-semibold text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-                    {selectedYear}년 {selectedMonth}월
-                </button>
-                <button onClick={goToNextMonth} className="rounded-md p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-zinc-800 dark:text-gray-400">
-                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                    </svg>
-                </button>
-            </div>
+            {/* 월 선택기 (공통 컴포넌트) */}
+            <MonthPicker year={selectedYear} month={selectedMonth} onChange={handleMonthChange} />
 
             {/* 예산 카드 그리드 */}
             {templates.length === 0 ? (

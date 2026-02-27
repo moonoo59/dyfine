@@ -5,6 +5,7 @@ import { useClosingHistory } from '@/hooks/queries/useClosingHistory';
 import { useTransferInstances } from '@/hooks/queries/useTransferInstances';
 import { useBudgets } from '@/hooks/queries/useBudgets';
 import { useQueryClient } from '@tanstack/react-query';
+import MonthPicker from '@/components/ui/MonthPicker';
 
 /**
  * 월 마감(Closing) 페이지 컴포넌트
@@ -70,14 +71,10 @@ export default function ClosingPage() {
             }));
     }, [templates, performances]);
 
-    // 월 이동 헬퍼
-    const goToPrevMonth = () => {
-        if (selectedMonth === 1) { setSelectedYear(y => y - 1); setSelectedMonth(12); }
-        else { setSelectedMonth(m => m - 1); }
-    };
-    const goToNextMonth = () => {
-        if (selectedMonth === 12) { setSelectedYear(y => y + 1); setSelectedMonth(1); }
-        else { setSelectedMonth(m => m + 1); }
+    // 월 변경 핸들러 (MonthPicker에서 호출)
+    const handleMonthChange = (y: number, m: number) => {
+        setSelectedYear(y);
+        setSelectedMonth(m);
     };
 
     /**
@@ -125,22 +122,8 @@ export default function ClosingPage() {
                 </p>
             </div>
 
-            {/* 월 선택기 */}
-            <div className="flex items-center justify-center space-x-4">
-                <button onClick={goToPrevMonth} className="rounded-md p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-zinc-800 dark:text-gray-400">
-                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-                    </svg>
-                </button>
-                <span className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {selectedYear}년 {selectedMonth}월
-                </span>
-                <button onClick={goToNextMonth} className="rounded-md p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-zinc-800 dark:text-gray-400">
-                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                    </svg>
-                </button>
-            </div>
+            {/* 월 선택기 (공통 컴포넌트) */}
+            <MonthPicker year={selectedYear} month={selectedMonth} onChange={handleMonthChange} />
 
             {/* 이미 마감된 월인 경우 */}
             {isAlreadyClosed && closedSummary ? (
