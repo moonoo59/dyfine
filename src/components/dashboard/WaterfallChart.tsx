@@ -1,4 +1,4 @@
-import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, Cell } from 'recharts';
+import { ResponsiveContainer, ComposedChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, Cell } from 'recharts';
 
 /**
  * Waterfall 차트 컴포넌트 (수입 → 카테고리 지출 → 순증감)

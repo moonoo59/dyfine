@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useHoldings, useRecordTrade, useSecurities } from '@/hooks/queries/useInvestments';
+import { useHoldings, useRecordTrade } from '@/hooks/queries/useInvestments';
 import { useAccounts } from '@/hooks/queries/useAccounts';
 import { useCategories } from '@/hooks/queries/useCategories';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
@@ -25,7 +25,7 @@ export default function InvestmentsPage() {
     const [selectedAccountId, setSelectedAccountId] = useState<number | ''>('');
     const [ticker, setTicker] = useState('');
     const [securityName, setSecurityName] = useState('');
-    const [market, setMarket] = useState('KOSPI');
+    const [market] = useState('KOSPI');
     const [quantity, setQuantity] = useState(0);
     const [price, setPrice] = useState(0);
     const [fee, setFee] = useState(0);
@@ -194,7 +194,7 @@ export default function InvestmentsPage() {
                                     outerRadius={80}
                                     paddingAngle={5}
                                     dataKey="value"
-                                    label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                                    label={({ percent: p }) => `${((p ?? 0) * 100).toFixed(0)}%`}
                                 >
                                     {allocationData.map((_, index) => (
                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
