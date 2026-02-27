@@ -41,12 +41,12 @@ WHERE te.id IS NULL
 LIMIT 10;
 
 -- 6. 마감된 월의 전표가 실제로 잠겨 있는지 확인
-SELECT mc.closing_month, COUNT(te.id) as total_entries,
+SELECT mc.year_month, COUNT(te.id) as total_entries,
        SUM(CASE WHEN te.is_locked THEN 1 ELSE 0 END) as locked_count,
        SUM(CASE WHEN NOT te.is_locked THEN 1 ELSE 0 END) as unlocked_count
 FROM month_closings mc
 JOIN transaction_entries te
   ON te.household_id = mc.household_id
-  AND date_trunc('month', te.occurred_at) = mc.closing_month::timestamp
-GROUP BY mc.closing_month
-ORDER BY mc.closing_month;
+  AND date_trunc('month', te.occurred_at) = mc.year_month::timestamp
+GROUP BY mc.year_month
+ORDER BY mc.year_month;
