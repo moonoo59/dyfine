@@ -29,6 +29,8 @@ export default function AppLayout() {
         { name: '계좌 관리', path: '/accounts' },
         { name: '분류 관리', path: '/categories' },
         { name: '월 마감', path: '/closing' },
+        { name: 'CSV Import', path: '/import' },
+        { name: '분류 룰', path: '/rules' },
     ];
 
     // 설정 메뉴 활성 여부 확인

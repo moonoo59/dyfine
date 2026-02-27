@@ -12,6 +12,8 @@ import TransfersPage from '@/pages/transfers/TransfersPage';
 import BudgetsPage from '@/pages/budgets/BudgetsPage';
 import ClosingPage from '@/pages/closing/ClosingPage';
 import DashboardPage from '@/pages/dashboard/DashboardPage';
+import CsvImportPage from '@/pages/import/CsvImportPage';
+import ClassificationRulesPage from '@/pages/settings/ClassificationRulesPage';
 
 const Loading = () => <div className="flex h-screen items-center justify-center text-lg font-medium text-zinc-500">Loading...</div>;
 
@@ -77,6 +79,8 @@ function App() {
                         <Route path="transfers" element={<TransfersPage />} />
                         <Route path="budgets" element={<BudgetsPage />} />
                         <Route path="closing" element={<ClosingPage />} />
+                        <Route path="import" element={<CsvImportPage />} />
+                        <Route path="rules" element={<ClassificationRulesPage />} />
                         <Route path="*" element={<Navigate to="/" replace />} />
                     </Route>
                 )}
