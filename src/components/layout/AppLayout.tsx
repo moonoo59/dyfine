@@ -28,6 +28,7 @@ export default function AppLayout() {
     const settingsNavItems = [
         { name: '계좌 관리', path: '/accounts' },
         { name: '분류 관리', path: '/categories' },
+        { name: '월 마감', path: '/closing' },
     ];
 
     // 설정 메뉴 활성 여부 확인
