@@ -4,11 +4,13 @@ import { useAuthStore } from '@/store/authStore';
 import { useCategories } from '@/hooks/queries/useCategories';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Category } from '../transactions/TransactionsPage';
+import CurrencyInput from '@/components/ui/CurrencyInput';
 
 export interface BudgetTemplate {
     id: number;
+    template_id: number;
     category_id: number;
-    amount: number;
+    monthly_amount: number;
     category?: Category;
 }
 
@@ -23,8 +25,13 @@ export default function BudgetsPage() {
     const { data: categoriesData } = useCategories();
     const categories = (categoriesData as Category[]) || [];
 
-    // 실적 데이터 (임시: 월별 합산치)
+    // 실적 데이터 (월별 합산치)
     const [performances, setPerformances] = useState<Record<number, number>>({});
+
+    // E-14: 월별 예산 선택
+    const now = new Date();
+    const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+    const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1); // 1~12
 
     // 모달 상태
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -32,9 +39,31 @@ export default function BudgetsPage() {
     const [selectedCategoryId, setSelectedCategoryId] = useState<number | ''>('');
     const [budgetAmount, setBudgetAmount] = useState<number>(0);
 
+    // E-14: 월 이동 헬퍼
+    const goToPrevMonth = () => {
+        if (selectedMonth === 1) {
+            setSelectedYear(y => y - 1);
+            setSelectedMonth(12);
+        } else {
+            setSelectedMonth(m => m - 1);
+        }
+    };
+    const goToNextMonth = () => {
+        if (selectedMonth === 12) {
+            setSelectedYear(y => y + 1);
+            setSelectedMonth(1);
+        } else {
+            setSelectedMonth(m => m + 1);
+        }
+    };
+    const goToCurrentMonth = () => {
+        setSelectedYear(now.getFullYear());
+        setSelectedMonth(now.getMonth() + 1);
+    };
+
     useEffect(() => {
         fetchData();
-    }, [user]);
+    }, [user, householdId, selectedYear, selectedMonth]); // householdId + 월 변경 시에도 재조회
 
     const fetchData = async () => {
         if (!user || !householdId) return;
@@ -42,23 +71,24 @@ export default function BudgetsPage() {
 
         // 1. (생략) 카테고리 목록 가져오기 - 훅으로 분리됨
 
-        // 2. 예산 템플릿 가져오기
+        // 2. 예산 템플릿 라인 가져오기 (budget_template_lines 테이블 사용)
         const { data: tplData } = await supabase
-            .from('budget_templates')
-            .select('*, category:categories(id, name, parent_id)')
-            .eq('household_id', householdId);
+            .from('budget_template_lines')
+            .select('*, category:categories(id, name, parent_id), template:budget_templates!inner(household_id)')
+            .eq('template.household_id', householdId);
 
         setTemplates((tplData as unknown as BudgetTemplate[]) || []);
 
-        // 3. (임시) 이번 달 지출 실적 집계
-        // MVP이므로 월 초~월 말 사이의 expense 전표 중 현재 템플릿의 category_id를 묶음
-        const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+        // 3. 선택 월의 지출 실적 집계
+        const startOfMonth = new Date(selectedYear, selectedMonth - 1, 1).toISOString();
+        const endOfMonth = new Date(selectedYear, selectedMonth, 0, 23, 59, 59).toISOString();
         const { data: entryData } = await supabase
             .from('transaction_entries')
             .select('category_id, lines:transaction_lines(amount)')
             .eq('household_id', householdId)
             .eq('entry_type', 'expense')
-            .gte('occurred_at', startOfMonth);
+            .gte('occurred_at', startOfMonth)
+            .lte('occurred_at', endOfMonth);
 
         const currentPerformances: Record<number, number> = {};
         if (entryData) {
@@ -83,31 +113,47 @@ export default function BudgetsPage() {
         if (editingTemplateId) {
             // 수정
             const { error } = await supabase
-                .from('budget_templates')
-                .update({ amount: budgetAmount, updated_at: new Date().toISOString() })
+                .from('budget_template_lines')
+                .update({ monthly_amount: budgetAmount })
                 .eq('id', editingTemplateId);
 
             actionError = error;
             if (error) alert('수정 실패: ' + error.message);
         } else {
-            // 신규
-            // 중복 체크
-            const existing = templates.find(t => t.category_id === Number(selectedCategoryId));
-            if (existing) {
-                alert('이미 해당 카테고리의 예산이 존재합니다. 수정을 이용해주세요.');
-                return;
+            // 신규 — 먼저 기본 템플릿이 있는지 확인하고 없으면 생성
+            let templateId: number | null = null;
+            const { data: existingTemplate } = await supabase
+                .from('budget_templates')
+                .select('id')
+                .eq('household_id', householdId)
+                .eq('is_default', true)
+                .maybeSingle();
+
+            if (existingTemplate) {
+                templateId = existingTemplate.id;
+            } else {
+                const { data: newTemplate, error: tplError } = await supabase
+                    .from('budget_templates')
+                    .insert([{ household_id: householdId, name: '기본 예산', is_default: true }])
+                    .select('id')
+                    .single();
+                if (tplError) {
+                    alert('예산 템플릿 생성 실패: ' + tplError.message);
+                    return;
+                }
+                templateId = newTemplate.id;
             }
 
-            const { error } = await supabase
-                .from('budget_templates')
+            const { error: insertError } = await supabase
+                .from('budget_template_lines')
                 .insert([{
-                    household_id: householdId,
+                    template_id: templateId,
                     category_id: selectedCategoryId,
-                    amount: budgetAmount
+                    monthly_amount: budgetAmount
                 }]);
 
-            actionError = error;
-            if (error) alert('생성 실패: ' + error.message);
+            actionError = insertError;
+            if (insertError) alert('생성 실패: ' + insertError.message);
         }
 
         if (!actionError) {
@@ -127,7 +173,7 @@ export default function BudgetsPage() {
     const openEditModal = (template: BudgetTemplate) => {
         setEditingTemplateId(template.id);
         setSelectedCategoryId(template.category_id);
-        setBudgetAmount(template.amount);
+        setBudgetAmount(template.monthly_amount);
         setIsModalOpen(true);
     };
 
@@ -153,6 +199,32 @@ export default function BudgetsPage() {
                 </button>
             </div>
 
+            {/* E-14: 월 선택기 */}
+            <div className="flex items-center justify-center space-x-4">
+                <button
+                    onClick={goToPrevMonth}
+                    className="rounded-md p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-zinc-800 dark:text-gray-400"
+                >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                    </svg>
+                </button>
+                <button
+                    onClick={goToCurrentMonth}
+                    className="text-lg font-semibold text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                >
+                    {selectedYear}년 {selectedMonth}월
+                </button>
+                <button
+                    onClick={goToNextMonth}
+                    className="rounded-md p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-zinc-800 dark:text-gray-400"
+                >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                    </svg>
+                </button>
+            </div>
+
             {templates.length === 0 ? (
                 <div className="rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
                     <p className="text-sm text-gray-500 dark:text-gray-400">설정된 예산이 없습니다. 자주 지출하는 카테고리의 예산을 지정해 통제해보세요.</p>
@@ -161,8 +233,8 @@ export default function BudgetsPage() {
                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     {templates.map(tpl => {
                         const currentSpend = performances[tpl.category_id] || 0;
-                        const progress = Math.min((currentSpend / tpl.amount) * 100, 100);
-                        const isOverBudget = currentSpend > tpl.amount;
+                        const progress = Math.min((currentSpend / tpl.monthly_amount) * 100, 100);
+                        const isOverBudget = currentSpend > tpl.monthly_amount;
 
                         return (
                             <div key={tpl.id} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm flex flex-col justify-between dark:border-zinc-800 dark:bg-zinc-950">
@@ -184,7 +256,7 @@ export default function BudgetsPage() {
                                         <span className={isOverBudget ? 'text-red-600 font-bold' : 'text-gray-900 dark:text-white'}>
                                             {currentSpend.toLocaleString()} 원 지출
                                         </span>
-                                        <span className="text-gray-500">/ {tpl.amount.toLocaleString()} 원</span>
+                                        <span className="text-gray-500">/ {tpl.monthly_amount.toLocaleString()} 원</span>
                                     </div>
 
                                     {/* Progress Bar */}
@@ -229,13 +301,11 @@ export default function BudgetsPage() {
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">월간 배정 예산</label>
-                                <input
-                                    type="number"
-                                    min="0"
+                                <CurrencyInput
                                     value={budgetAmount}
-                                    onChange={e => setBudgetAmount(Number(e.target.value))}
+                                    onChange={setBudgetAmount}
                                     required
-                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                                    className="mt-1 block w-full rounded-md border border-gray-300 py-2 pr-3 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
                                 />
                             </div>
 

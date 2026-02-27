@@ -20,6 +20,8 @@ export default function CategoriesPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [name, setName] = useState('');
     const [parentId, setParentId] = useState<number | null>(null);
+    // E-09: 지출/수입별 카테고리 구분
+    const [categoryType, setCategoryType] = useState<'expense' | 'income' | 'both'>('expense');
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -30,7 +32,8 @@ export default function CategoriesPage() {
             .insert([{
                 household_id: householdId,
                 name: name,
-                parent_id: parentId, // null이면 대분류
+                parent_id: parentId,
+                category_type: categoryType,
                 is_active: true
             }]);
 
@@ -38,6 +41,7 @@ export default function CategoriesPage() {
             setIsModalOpen(false);
             setName('');
             setParentId(null);
+            setCategoryType('expense');
 
             // 캐시 무효화로 즉시 리로드
             if (householdId) {
@@ -74,7 +78,15 @@ export default function CategoriesPage() {
                     ) : (
                         l1Categories.map(l1 => (
                             <li key={l1.id} className="p-4 hover:bg-gray-50 dark:hover:bg-zinc-900/50">
-                                <div className="font-semibold text-gray-900 dark:text-white mb-2">{l1.name}</div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="font-semibold text-gray-900 dark:text-white">{l1.name}</span>
+                                    <span className={`text-xs px-2 py-0.5 rounded-full ${l1.category_type === 'income' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                            : l1.category_type === 'both' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                                                : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                        }`}>
+                                        {l1.category_type === 'income' ? '수입' : l1.category_type === 'both' ? '공통' : '지출'}
+                                    </span>
+                                </div>
                                 <div className="ml-4 space-y-2 border-l-2 border-gray-100 dark:border-zinc-800 pl-4">
                                     {l2Categories.filter(l2 => l2.parent_id === l1.id).map(l2 => (
                                         <div key={l2.id} className="text-sm text-gray-600 dark:text-gray-400 flex items-center justify-between">
@@ -121,6 +133,25 @@ export default function CategoriesPage() {
                                         <option key={l1.id} value={l1.id}>{l1.name}</option>
                                     ))}
                                 </select>
+                            </div>
+
+                            {/* E-09: 지출/수입 구분 */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">유형</label>
+                                <div className="mt-1 flex space-x-3">
+                                    <button type="button" onClick={() => setCategoryType('expense')}
+                                        className={`flex-1 py-2 text-sm rounded-md border ${categoryType === 'expense' ? 'border-red-500 bg-red-50 text-red-700 font-bold dark:bg-red-900/20 dark:text-red-400'
+                                                : 'border-gray-300 text-gray-500 dark:border-zinc-700 dark:text-gray-400'
+                                            }`}>지출</button>
+                                    <button type="button" onClick={() => setCategoryType('income')}
+                                        className={`flex-1 py-2 text-sm rounded-md border ${categoryType === 'income' ? 'border-blue-500 bg-blue-50 text-blue-700 font-bold dark:bg-blue-900/20 dark:text-blue-400'
+                                                : 'border-gray-300 text-gray-500 dark:border-zinc-700 dark:text-gray-400'
+                                            }`}>수입</button>
+                                    <button type="button" onClick={() => setCategoryType('both')}
+                                        className={`flex-1 py-2 text-sm rounded-md border ${categoryType === 'both' ? 'border-purple-500 bg-purple-50 text-purple-700 font-bold dark:bg-purple-900/20 dark:text-purple-400'
+                                                : 'border-gray-300 text-gray-500 dark:border-zinc-700 dark:text-gray-400'
+                                            }`}>공통</button>
+                                </div>
                             </div>
 
                             <div className="mt-6 flex justify-end space-x-3">

@@ -8,6 +8,7 @@ export default function AppLayout() {
     const navigate = useNavigate();
     const location = useLocation();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -15,14 +16,22 @@ export default function AppLayout() {
         navigate('/login');
     };
 
-    const navItems = [
+    // 메인 네비게이션 항목
+    const mainNavItems = [
         { name: '대시보드', path: '/' },
         { name: '거래 내역', path: '/transactions' },
-        { name: '계좌 관리', path: '/accounts' },
-        { name: '분류 관리', path: '/categories' },
         { name: '자동 이체', path: '/transfers' },
         { name: '예산 관리', path: '/budgets' },
     ];
+
+    // 설정 하위 메뉴 항목
+    const settingsNavItems = [
+        { name: '계좌 관리', path: '/accounts' },
+        { name: '분류 관리', path: '/categories' },
+    ];
+
+    // 설정 메뉴 활성 여부 확인
+    const isSettingsActive = settingsNavItems.some(item => location.pathname === item.path);
 
     return (
         <div className="flex min-h-screen flex-col bg-gray-50 dark:bg-zinc-900">
@@ -37,7 +46,7 @@ export default function AppLayout() {
                                 </Link>
                             </div>
                             <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-                                {navItems.map((item) => {
+                                {mainNavItems.map((item) => {
                                     const isActive = location.pathname === item.path;
                                     return (
                                         <Link
@@ -52,6 +61,42 @@ export default function AppLayout() {
                                         </Link>
                                     );
                                 })}
+                                {/* 설정 드롭다운 메뉴 */}
+                                <div className="relative inline-flex items-center">
+                                    <button
+                                        onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                                        className={`inline-flex items-center border-b-2 px-1 pt-1 text-sm font-medium ${isSettingsActive
+                                            ? 'border-indigo-500 text-gray-900 dark:text-white'
+                                            : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                                            }`}
+                                    >
+                                        설정
+                                        <svg className="ml-1 h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                        </svg>
+                                    </button>
+                                    {isSettingsOpen && (
+                                        <>
+                                            {/* 클릭 외부 감지용 오버레이 */}
+                                            <div className="fixed inset-0 z-10" onClick={() => setIsSettingsOpen(false)} />
+                                            <div className="absolute left-0 top-full z-20 mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+                                                {settingsNavItems.map((item) => (
+                                                    <Link
+                                                        key={item.name}
+                                                        to={item.path}
+                                                        onClick={() => setIsSettingsOpen(false)}
+                                                        className={`block px-4 py-2 text-sm ${location.pathname === item.path
+                                                            ? 'bg-indigo-50 text-indigo-700 dark:bg-zinc-800 dark:text-indigo-400'
+                                                            : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-zinc-800'
+                                                            }`}
+                                                    >
+                                                        {item.name}
+                                                    </Link>
+                                                ))}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
@@ -94,12 +139,13 @@ export default function AppLayout() {
                 {isMobileMenuOpen && (
                     <div className="sm:hidden border-t border-gray-200 dark:border-zinc-800">
                         <div className="space-y-1 pb-3 pt-2">
-                            {navItems.map((item) => {
+                            {mainNavItems.map((item) => {
                                 const isActive = location.pathname === item.path;
                                 return (
                                     <Link
                                         key={item.name}
                                         to={item.path}
+                                        onClick={() => setIsMobileMenuOpen(false)}
                                         className={`block border-l-4 py-2 pl-3 pr-4 text-base font-medium ${isActive
                                             ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-zinc-800 dark:text-white'
                                             : 'border-transparent text-gray-500 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-zinc-800 dark:hover:text-gray-300'
@@ -109,6 +155,26 @@ export default function AppLayout() {
                                     </Link>
                                 );
                             })}
+                            {/* 모바일 설정 섹션 */}
+                            <div className="border-t border-gray-100 dark:border-zinc-800 mt-2 pt-2">
+                                <p className="px-3 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">설정</p>
+                                {settingsNavItems.map((item) => {
+                                    const isActive = location.pathname === item.path;
+                                    return (
+                                        <Link
+                                            key={item.name}
+                                            to={item.path}
+                                            onClick={() => setIsMobileMenuOpen(false)}
+                                            className={`block border-l-4 py-2 pl-6 pr-4 text-base font-medium ${isActive
+                                                ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-zinc-800 dark:text-white'
+                                                : 'border-transparent text-gray-500 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-zinc-800 dark:hover:text-gray-300'
+                                                }`}
+                                        >
+                                            {item.name}
+                                        </Link>
+                                    );
+                                })}
+                            </div>
                         </div>
                         <div className="border-t border-gray-200 pb-3 pt-4 dark:border-zinc-800">
                             <div className="flex items-center px-4">

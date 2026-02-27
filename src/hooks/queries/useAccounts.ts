@@ -14,7 +14,6 @@ export function useAccounts() {
                 .from('accounts')
                 .select('*')
                 .eq('household_id', householdId)
-                .order('account_group', { ascending: true })
                 .order('name', { ascending: true });
 
             if (error) throw error;

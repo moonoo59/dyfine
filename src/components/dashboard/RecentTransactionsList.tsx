@@ -22,7 +22,7 @@ export function RecentTransactionsList({ transactions }: RecentTransactionsListP
                             <span className="text-xs text-gray-500">{new Date(trx.occurred_at).toLocaleDateString()}</span>
                         </div>
                         <span className={`font-semibold ${isInc ? 'text-blue-600' : isExp ? 'text-red-600' : 'text-gray-700 dark:text-gray-300'}`}>
-                            {isInc ? '+' : isExp ? '-' : ''}{amount.toLocaleString()} 원
+                            {isInc ? '+' : ''}₩{amount.toLocaleString()}
                         </span>
                     </li>
                 );

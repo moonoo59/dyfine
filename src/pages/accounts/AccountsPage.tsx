@@ -3,13 +3,17 @@ import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useAccounts } from '@/hooks/queries/useAccounts';
 import { useQueryClient } from '@tanstack/react-query';
+import CurrencyInput from '@/components/ui/CurrencyInput';
 
 export interface Account {
     id: number;
     household_id: string;
     group_id: number | null;
     name: string;
-    account_type: 'bank' | 'brokerage' | 'virtual' | 'external';
+    bank_name: string;
+    account_number: string;
+    holder_name: string;
+    account_type: 'checking' | 'savings' | 'installment_savings' | 'credit_card' | 'debit_card' | 'investment';
     currency: string;
     opening_balance: number;
     is_active: boolean;
@@ -34,7 +38,10 @@ export default function AccountsPage() {
     // 모달 상태
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [newAccountName, setNewAccountName] = useState('');
-    const [newAccountType, setNewAccountType] = useState<'bank' | 'brokerage' | 'virtual' | 'external'>('bank');
+    const [newBankName, setNewBankName] = useState('');
+    const [newAccountNumber, setNewAccountNumber] = useState('');
+    const [newHolderName, setNewHolderName] = useState('');
+    const [newAccountType, setNewAccountType] = useState<Account['account_type']>('checking');
     const [newOpeningBalance, setNewOpeningBalance] = useState<number>(0);
 
     const handleCreateAccount = async (e: React.FormEvent) => {
@@ -46,14 +53,19 @@ export default function AccountsPage() {
             .insert([{
                 household_id: householdId,
                 name: newAccountName,
+                bank_name: newBankName || null,
+                account_number: newAccountNumber || null,
+                holder_name: newHolderName || null,
                 account_type: newAccountType,
                 opening_balance: newOpeningBalance,
-                // group_id는 Phase 1 추가 고도화 때 연결 고려
             }]);
 
         if (!error) {
             setIsModalOpen(false);
             setNewAccountName('');
+            setNewBankName('');
+            setNewAccountNumber('');
+            setNewHolderName('');
             setNewOpeningBalance(0);
 
             // 캐시 강제 갱신
@@ -68,10 +80,16 @@ export default function AccountsPage() {
     // 계좌 타입 한글 라벨링 헬퍼
     const getAccountTypeLabel = (type: string) => {
         switch (type) {
-            case 'bank': return '입출금/예적금';
-            case 'brokerage': return '증권/투자';
-            case 'virtual': return '가상/페이';
-            case 'external': return '외부/신용카드';
+            case 'checking': return '입출금';
+            case 'bank': return '입출금'; // 기존 데이터 호환
+            case 'savings': return '예금';
+            case 'installment_savings': return '적금';
+            case 'credit_card': return '신용카드';
+            case 'debit_card': return '체크카드';
+            case 'investment': return '투자/증권';
+            case 'brokerage': return '증권'; // PRD 원본 타입 호환
+            case 'virtual': return '가상계좌';
+            case 'external': return '외부계좌';
             default: return type;
         }
     };
@@ -107,11 +125,28 @@ export default function AccountsPage() {
                             <li key={account.id} className="flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-zinc-900/50">
                                 <div className="flex flex-col">
                                     <span className="text-base font-semibold text-gray-900 dark:text-white">{account.name}</span>
-                                    <span className="text-sm text-gray-500 dark:text-gray-400">{getAccountTypeLabel(account.account_type)}</span>
+                                    <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                                        <span>{getAccountTypeLabel(account.account_type)}</span>
+                                        {account.bank_name && (
+                                            <>
+                                                <span>·</span>
+                                                <span>{account.bank_name}</span>
+                                            </>
+                                        )}
+                                        {account.account_number && (
+                                            <>
+                                                <span>·</span>
+                                                <span>{account.account_number}</span>
+                                            </>
+                                        )}
+                                    </div>
+                                    {account.holder_name && (
+                                        <span className="text-xs text-gray-400 dark:text-gray-500">예금주: {account.holder_name}</span>
+                                    )}
                                 </div>
                                 <div className="flex flex-col items-end">
                                     <span className="text-base font-medium text-gray-900 dark:text-white">
-                                        {account.opening_balance.toLocaleString()} {account.currency}
+                                        ₩{account.opening_balance.toLocaleString()}
                                     </span>
                                     <span className={`text-xs px-2 py-1 mt-1 rounded-full ${account.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
                                         {account.is_active ? '활성' : '비활성'}
@@ -130,7 +165,7 @@ export default function AccountsPage() {
                         <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">새 계좌 추가</h2>
                         <form onSubmit={handleCreateAccount} className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">계좌명</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">계좌명 *</label>
                                 <input
                                     type="text"
                                     required
@@ -141,28 +176,62 @@ export default function AccountsPage() {
                                 />
                             </div>
 
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">은행/증권사</label>
+                                    <input
+                                        type="text"
+                                        value={newBankName}
+                                        onChange={(e) => setNewBankName(e.target.value)}
+                                        className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white sm:text-sm"
+                                        placeholder="예) 신한은행"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">계좌번호</label>
+                                    <input
+                                        type="text"
+                                        value={newAccountNumber}
+                                        onChange={(e) => setNewAccountNumber(e.target.value)}
+                                        className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white sm:text-sm"
+                                        placeholder="예) 110-xxx-xxxxxx"
+                                    />
+                                </div>
+                            </div>
+
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">계좌 유형</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">예금주</label>
+                                <input
+                                    type="text"
+                                    value={newHolderName}
+                                    onChange={(e) => setNewHolderName(e.target.value)}
+                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white sm:text-sm"
+                                    placeholder="예) 홍길동"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">계좌 유형 *</label>
                                 <select
                                     value={newAccountType}
                                     onChange={(e: any) => setNewAccountType(e.target.value)}
                                     className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white sm:text-sm"
                                 >
-                                    <option value="bank">입출금/예적금</option>
-                                    <option value="brokerage">증권/투자</option>
-                                    <option value="virtual">가상/페이</option>
-                                    <option value="external">외부/신용카드</option>
+                                    <option value="checking">입출금</option>
+                                    <option value="savings">예금</option>
+                                    <option value="installment_savings">적금</option>
+                                    <option value="credit_card">신용카드</option>
+                                    <option value="debit_card">체크카드</option>
+                                    <option value="investment">투자/증권</option>
                                 </select>
                             </div>
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">초기 잔액</label>
-                                <input
-                                    type="number"
-                                    required
+                                <CurrencyInput
                                     value={newOpeningBalance}
-                                    onChange={(e) => setNewOpeningBalance(Number(e.target.value))}
-                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white sm:text-sm"
+                                    onChange={setNewOpeningBalance}
+                                    className="mt-1 block w-full rounded-md border border-gray-300 py-2 pr-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white sm:text-sm"
                                 />
                             </div>
 

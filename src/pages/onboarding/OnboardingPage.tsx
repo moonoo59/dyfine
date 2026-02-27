@@ -16,27 +16,15 @@ export default function OnboardingPage({ onComplete }: { onComplete: () => void 
         setError(null);
 
         try {
-            // 1. Household(가구) 생성
-            const { data: newHousehold, error: hError } = await supabase
-                .from('households')
-                .insert([{ name: householdName }])
-                .select('id')
-                .single();
+            // 1. RPC 함수로 가구 생성 + owner 등록을 한 번에 처리 (RLS 우회)
+            const { data: householdId, error: rpcError } = await supabase
+                .rpc('create_household_with_owner', {
+                    p_name: householdName
+                });
 
-            if (hError) throw hError;
+            if (rpcError) throw rpcError;
 
-            // 2. 현재 로그인한 유저를 해당 가구의 owner(마스터)로 등록
-            const { error: memberError } = await supabase
-                .from('household_members')
-                .insert([{
-                    household_id: newHousehold.id,
-                    user_id: user.id,
-                    role: 'owner'
-                }]);
-
-            if (memberError) throw memberError;
-
-            // 3. 프로필 이름 업데이트(선택적)
+            // 2. 프로필 이름 업데이트(선택적)
             await supabase.from('profiles').upsert({
                 user_id: user.id,
                 display_name: user.email?.split('@')[0] || 'User',

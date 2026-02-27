@@ -12,7 +12,7 @@ export function useCategories() {
 
             const { data, error } = await supabase
                 .from('categories')
-                .select('id, name, parent_id')
+                .select('id, name, parent_id, category_type')
                 .eq('household_id', householdId);
 
             if (error) throw error;

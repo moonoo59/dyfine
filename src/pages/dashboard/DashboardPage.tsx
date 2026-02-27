@@ -20,7 +20,7 @@ export default function DashboardPage() {
 
     useEffect(() => {
         fetchDashboardData();
-    }, [user]);
+    }, [user, householdId]);
 
     const fetchDashboardData = async () => {
         if (!user || !householdId) return;
@@ -71,7 +71,7 @@ export default function DashboardPage() {
             const amount = entry.lines.reduce((s: number, l: any) => s + Math.abs(l.amount < 0 ? l.amount : 0), 0);
             expSum += amount;
 
-            const catName = entry.category?.name || '미분류';
+            const catName = (entry.category as any)?.name || '미분류';
             catExpMap[catName] = (catExpMap[catName] || 0) + amount;
         });
 
@@ -108,19 +108,19 @@ export default function DashboardPage() {
                 <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
                     <p className="text-sm font-medium text-gray-500 dark:text-gray-400">총 자산 (기초잔액 기준)</p>
                     <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
-                        {totalAssets.toLocaleString()} ₩
+                        ₩{totalAssets.toLocaleString()}
                     </p>
                 </div>
                 <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
                     <p className="text-sm font-medium text-gray-500 dark:text-gray-400">이번 달 수입</p>
                     <p className="mt-2 text-3xl font-bold text-blue-600 dark:text-blue-400">
-                        +{monthlyIncome.toLocaleString()} ₩
+                        ₩{monthlyIncome.toLocaleString()}
                     </p>
                 </div>
                 <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
                     <p className="text-sm font-medium text-gray-500 dark:text-gray-400">이번 달 지출</p>
                     <p className="mt-2 text-3xl font-bold text-red-600 dark:text-red-400">
-                        -{monthlyExpense.toLocaleString()} ₩
+                        ₩{monthlyExpense.toLocaleString()}
                     </p>
                 </div>
             </div>

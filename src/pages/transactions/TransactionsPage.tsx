@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useAccounts } from '@/hooks/queries/useAccounts';
 import { useCategories } from '@/hooks/queries/useCategories';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import CurrencyInput from '@/components/ui/CurrencyInput';
 
 export interface Category {
     id: number;
@@ -79,6 +80,15 @@ export default function TransactionsPage() {
     const [fromAccountId, setFromAccountId] = useState<number | ''>('');
     const [toAccountId, setToAccountId] = useState<number | ''>('');
     const [categoryId, setCategoryId] = useState<number | ''>('');
+    // E-05: L1→L2 캐스케이드 카테고리 선택 상태
+    const [selectedL1, setSelectedL1] = useState<number | ''>('');
+
+    // E-05: L1(대분류) 및 L2(소분류) 분리
+    const l1Categories = useMemo(() => categories.filter(c => c.parent_id === null), [categories]);
+    const l2Categories = useMemo(() => {
+        if (!selectedL1) return [];
+        return categories.filter(c => c.parent_id === selectedL1);
+    }, [categories, selectedL1]);
 
     const handleQuickAdd = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -191,7 +201,7 @@ export default function TransactionsPage() {
                                             <div key={line.id} className="flex items-center space-x-2">
                                                 <span className="text-gray-500 dark:text-gray-400">{line.account?.name}</span>
                                                 <span className={`font-medium ${line.amount > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>
-                                                    {line.amount > 0 ? '+' : ''}{line.amount.toLocaleString()}
+                                                    {line.amount > 0 ? '+' : ''}₩{Math.abs(line.amount).toLocaleString()}
                                                 </span>
                                             </div>
                                         ))}
@@ -222,7 +232,12 @@ export default function TransactionsPage() {
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">금액</label>
-                                <input type="number" value={newAmount} onChange={(e) => setNewAmount(Number(e.target.value))} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white" required />
+                                <CurrencyInput
+                                    value={newAmount}
+                                    onChange={setNewAmount}
+                                    required
+                                    className="mt-1 block w-full rounded-md border border-gray-300 py-2 pr-3 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                                />
                             </div>
 
                             {(newType === 'expense' || newType === 'transfer') && (
@@ -246,12 +261,38 @@ export default function TransactionsPage() {
                             )}
 
                             {newType !== 'transfer' && (
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">카테고리</label>
-                                    <select value={categoryId} onChange={(e) => setCategoryId(Number(e.target.value) || '')} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
-                                        <option value="">미분류</option>
-                                        {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-                                    </select>
+                                <div className="space-y-3">
+                                    {/* L1 대분류 선택 */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">대분류</label>
+                                        <select
+                                            value={selectedL1}
+                                            onChange={(e) => {
+                                                const val = Number(e.target.value) || '';
+                                                setSelectedL1(val);
+                                                // L1이 바뀌면 L2 초기화, L1 자체를 카테고리로 설정
+                                                setCategoryId(val);
+                                            }}
+                                            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                                        >
+                                            <option value="">미분류</option>
+                                            {l1Categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+                                        </select>
+                                    </div>
+                                    {/* L2 소분류 선택 (선택된 L1의 하위항목이 있을 때만 표시) */}
+                                    {l2Categories.length > 0 && (
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">소분류</label>
+                                            <select
+                                                value={categoryId}
+                                                onChange={(e) => setCategoryId(Number(e.target.value) || selectedL1 || '')}
+                                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                                            >
+                                                <option value={selectedL1 as number}>대분류로 기록</option>
+                                                {l2Categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+                                            </select>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 

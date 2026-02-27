@@ -49,7 +49,7 @@ export default function TransfersPage() {
 
     useEffect(() => {
         fetchData();
-    }, [user]);
+    }, [user, householdId]);
 
     const fetchData = async () => {
         if (!user || !householdId) return;

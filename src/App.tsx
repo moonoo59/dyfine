@@ -54,7 +54,7 @@ function App() {
     }
 
     return (
-        <div className="min-h-screen bg-background font-sans antialiased">
+        <div className="min-h-screen bg-white font-sans antialiased dark:bg-zinc-950">
             <Routes>
                 {/* 비로그인 유저는 로그인 페이지로 */}
                 <Route
