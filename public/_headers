@@ -1,0 +1,14 @@
+/*
+  Cloudflare Pages 보안 헤더 설정
+  - CSP: Supabase 도메인만 허용
+  - X-Frame-Options: 클릭재킹 방지
+  - X-Content-Type-Options: MIME 스니핑 방지
+*/
+
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  X-XSS-Protection: 1; mode=block
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co;
