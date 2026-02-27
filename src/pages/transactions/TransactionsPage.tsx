@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useAccounts } from '@/hooks/queries/useAccounts';
@@ -76,13 +76,14 @@ export default function TransactionsPage() {
     const [newAmount, setNewAmount] = useState<number>(0);
     const [newType, setNewType] = useState<'expense' | 'income' | 'transfer'>('expense');
     const [newMemo, setNewMemo] = useState('');
-
-
+    const [fromAccountId, setFromAccountId] = useState<number | ''>('');
+    const [toAccountId, setToAccountId] = useState<number | ''>('');
+    const [categoryId, setCategoryId] = useState<number | ''>('');
 
     const handleQuickAdd = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user || !householdId || newAmount <= 0) {
-            alert('금 액은 0보다 커야 합니다.');
+            alert('금액은 0보다 커야 합니다.');
             return;
         }
 
@@ -135,12 +136,6 @@ export default function TransactionsPage() {
             queryClient.invalidateQueries({ queryKey: ['accounts', householdId] });
         }
     };
-
-    // 상태 변수 선언 위치상 에러가 안나게 상단으로 옮기는게 맞지만, multi_replace 특성상 여기서 재선언 방어로 위에 적었음.
-    // 이전 chunk에서 삭제되었어야할 fromAccountId 등이 있으므로 여기서 선언해 복구.
-    const [fromAccountId, setFromAccountId] = useState<number | ''>('');
-    const [toAccountId, setToAccountId] = useState<number | ''>('');
-    const [categoryId, setCategoryId] = useState<number | ''>('');
 
     return (
         <div className="space-y-6">

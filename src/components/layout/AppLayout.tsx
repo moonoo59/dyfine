@@ -19,6 +19,7 @@ export default function AppLayout() {
         { name: '대시보드', path: '/' },
         { name: '거래 내역', path: '/transactions' },
         { name: '계좌 관리', path: '/accounts' },
+        { name: '분류 관리', path: '/categories' },
         { name: '자동 이체', path: '/transfers' },
         { name: '예산 관리', path: '/budgets' },
     ];

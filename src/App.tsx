@@ -6,6 +6,7 @@ import LoginPage from '@/pages/auth/LoginPage';
 import OnboardingPage from '@/pages/onboarding/OnboardingPage';
 import AppLayout from '@/components/layout/AppLayout';
 import AccountsPage from '@/pages/accounts/AccountsPage';
+import CategoriesPage from '@/pages/settings/CategoriesPage';
 import TransactionsPage from '@/pages/transactions/TransactionsPage';
 import TransfersPage from '@/pages/transfers/TransfersPage';
 import BudgetsPage from '@/pages/budgets/BudgetsPage';
@@ -70,6 +71,7 @@ function App() {
                     <Route path="/" element={<AppLayout />}>
                         <Route index element={<DashboardPage />} />
                         <Route path="accounts" element={<AccountsPage />} />
+                        <Route path="categories" element={<CategoriesPage />} />
                         <Route path="transactions" element={<TransactionsPage />} />
                         <Route path="transfers" element={<TransfersPage />} />
                         <Route path="budgets" element={<BudgetsPage />} />

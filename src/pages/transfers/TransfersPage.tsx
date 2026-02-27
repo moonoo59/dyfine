@@ -10,8 +10,8 @@ export interface AutoTransferRule {
     name: string;
     from_account_id: number;
     to_account_id: number;
-    amount: number;
-    transfer_day: number;
+    amount_expected: number;
+    day_of_month: number;
     is_active: boolean;
     from_account?: { name: string };
     to_account?: { name: string };
@@ -20,7 +20,8 @@ export interface AutoTransferRule {
 export interface AutoTransferInstance {
     id: number;
     rule_id: number;
-    target_date: string;
+    target_date?: string; // fallback in case
+    due_date: string;
     status: 'pending' | 'completed' | 'skipped';
     actual_entry_id: number | null;
     rule?: AutoTransferRule;
@@ -70,7 +71,7 @@ export default function TransfersPage() {
             const ruleIds = rulesData.map(r => r.id);
             const { data: instanceData } = await supabase
                 .from('auto_transfer_instances')
-                .select('*, rule:auto_transfer_rules(name, amount, transfer_day)')
+                .select('*, rule:auto_transfer_rules(name, amount_expected, day_of_month)')
                 .in('rule_id', ruleIds)
                 .eq('status', 'pending')
                 .order('target_date', { ascending: true });
@@ -85,18 +86,33 @@ export default function TransfersPage() {
         e.preventDefault();
         if (!user || !householdId || amount <= 0 || !fromAccountId || !toAccountId) return;
 
-        const { error } = await supabase
+        const { data: newRule, error } = await supabase
             .from('auto_transfer_rules')
             .insert([{
                 household_id: householdId,
                 name: ruleName,
                 from_account_id: fromAccountId,
                 to_account_id: toAccountId,
-                amount,
-                transfer_day: transferDay
+                amount_expected: amount,
+                day_of_month: transferDay,
+                schedule_type: 'monthly'
+            }])
+            .select()
+            .single();
+
+        if (!error && newRule) {
+            // MVP 데모용: 규칙 생성 시 임시로 이번 달 당월 '대기 중' 인스턴스를 하나 억지로 생성합니다 (원래는 Cron이 할 일)
+            const targetDate = new Date();
+            targetDate.setDate(transferDay);
+
+            await supabase.from('auto_transfer_instances').insert([{
+                household_id: householdId,
+                rule_id: newRule.id,
+                due_date: targetDate.toISOString().split('T')[0],
+                expected_amount: amount,
+                status: 'pending'
             }]);
 
-        if (!error) {
             setIsModalOpen(false);
             setRuleName('');
             setAmount(0);
@@ -121,7 +137,7 @@ export default function TransfersPage() {
             .from('transaction_entries')
             .insert([{
                 household_id: memberData.household_id,
-                occurred_at: instance.target_date, // 예정일로 기록할지 현재일로 기록할지는 정책
+                occurred_at: instance.due_date || instance.target_date,
                 entry_type: 'transfer',
                 memo: `[자동이체] ${instance.rule.name}`,
                 source: 'auto_transfer',
@@ -131,14 +147,14 @@ export default function TransfersPage() {
             .single();
 
         if (entryError || !entryData) {
-            alert('트랜잭션 기록 실패: ' + entryError?.message);
+            alert('트랜잭션 기록 실패: ' + (entryError?.message || '알 수 없는 오류'));
             return;
         }
 
         // 2. Lines 생성
         const { error: linesError } = await supabase.from('transaction_lines').insert([
-            { entry_id: entryData.id, account_id: instance.rule.from_account_id, amount: -instance.rule.amount },
-            { entry_id: entryData.id, account_id: instance.rule.to_account_id, amount: instance.rule.amount }
+            { entry_id: entryData.id, account_id: instance.rule.from_account_id, amount: -instance.rule.amount_expected },
+            { entry_id: entryData.id, account_id: instance.rule.to_account_id, amount: instance.rule.amount_expected }
         ]);
 
         if (linesError) {
@@ -182,11 +198,11 @@ export default function TransfersPage() {
                                     <div className="flex flex-col">
                                         <span className="font-semibold text-gray-900 dark:text-white">{inst.rule?.name}</span>
                                         <span className="text-sm text-rose-600 dark:text-rose-400">
-                                            예정일: {new Date(inst.target_date).toLocaleDateString()}
+                                            예정일: {new Date(inst.due_date || inst.target_date || '').toLocaleDateString()}
                                         </span>
                                     </div>
                                     <div className="flex items-center space-x-4">
-                                        <span className="font-medium text-gray-900 dark:text-white">{inst.rule?.amount.toLocaleString()} 원</span>
+                                        <span className="font-medium text-gray-900 dark:text-white">{inst.rule?.amount_expected.toLocaleString()} 원</span>
                                         <button
                                             onClick={() => confirmInstance(inst)}
                                             className="rounded bg-rose-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-700"
@@ -226,11 +242,11 @@ export default function TransfersPage() {
                                     <div className="flex flex-col">
                                         <span className="font-semibold text-gray-900 dark:text-white">{rule.name}</span>
                                         <span className="text-sm text-gray-500">
-                                            매월 {rule.transfer_day}일 ({rule.from_account?.name || '알수없음'} ➔ {rule.to_account?.name || '알수없음'})
+                                            매월 {rule.day_of_month}일 ({rule.from_account?.name || '알수없음'} ➔ {rule.to_account?.name || '알수없음'})
                                         </span>
                                     </div>
                                     <div className="flex items-center space-x-4">
-                                        <span className="font-medium">{rule.amount.toLocaleString()} 원</span>
+                                        <span className="font-medium">{rule.amount_expected.toLocaleString()} 원</span>
                                         <span className={`text-xs px-2 py-1 rounded-full ${rule.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
                                             {rule.is_active ? '활성' : '비활성'}
                                         </span>
