@@ -17,7 +17,7 @@ export default function OnboardingPage({ onComplete }: { onComplete: () => void 
 
         try {
             // 1. RPC 함수로 가구 생성 + owner 등록을 한 번에 처리 (RLS 우회)
-            const { data: householdId, error: rpcError } = await supabase
+            const { data: _householdId, error: rpcError } = await supabase
                 .rpc('create_household_with_owner', {
                     p_name: householdName
                 });

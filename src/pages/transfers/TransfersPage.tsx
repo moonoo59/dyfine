@@ -121,7 +121,7 @@ export default function TransfersPage() {
                 queryClient.invalidateQueries({ queryKey: ['transactions', householdId] }); // 향후 Transactions 페이지 연동 고려
             }
         } else {
-            alert('규칙 생성 실패: ' + error.message);
+            alert('규칙 생성 실패: ' + error?.message);
         }
     };
 
