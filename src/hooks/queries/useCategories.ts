@@ -19,6 +19,6 @@ export function useCategories() {
             return data;
         },
         enabled: !!householdId,
-        staleTime: 1000 * 60 * 30, // 카테고리는 잘 안 바뀌므로 30분 캐시
+        staleTime: 1000 * 60 * 60, // 1시간 동안 캐시 유지 (변경 빈도 매우 낮음)
     });
 }

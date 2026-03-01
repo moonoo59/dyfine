@@ -21,13 +21,24 @@ import InvestmentsPage from '@/pages/investments/InvestmentsPage';
 
 import { Toaster } from 'react-hot-toast';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
+import { useThemeStore } from '@/store/themeStore';
 
 const Loading = () => <div className="flex h-screen items-center justify-center text-lg font-medium text-zinc-500">Loading...</div>;
 
 function App() {
     const { user, isLoading } = useAuthStore();
+    const { theme } = useThemeStore();
     const [hasHousehold, setHasHousehold] = useState<boolean | null>(null);
     const [checkingHousehold, setCheckingHousehold] = useState(false);
+
+    // 테마 적용
+    useEffect(() => {
+        if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    }, [theme]);
 
     // 사용자가 로그인되면, 소속된 가구(Household)가 있는지 검사합니다.
     useEffect(() => {

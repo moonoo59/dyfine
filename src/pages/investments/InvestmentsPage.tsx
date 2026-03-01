@@ -119,7 +119,7 @@ export default function InvestmentsPage() {
     return (
         <div className="space-y-6">
             {/* 상단 헤더 */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">투자 관리</h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400">보유 자산 현황 및 수익률을 실시간으로 확인합니다.</p>
@@ -127,13 +127,13 @@ export default function InvestmentsPage() {
                 <div className="flex space-x-2">
                     <button
                         onClick={handleOpenPriceModal}
-                        className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700"
+                        className="rounded-lg bg-green-600 px-3 py-2 sm:px-4 text-xs sm:text-sm font-medium text-white shadow-sm hover:bg-green-700 whitespace-nowrap"
                     >
                         현재가 갱신
                     </button>
                     <button
                         onClick={() => { setTradeType('buy'); setIsTradeModalOpen(true); }}
-                        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700"
+                        className="rounded-lg bg-indigo-600 px-3 py-2 sm:px-4 text-xs sm:text-sm font-medium text-white shadow-sm hover:bg-indigo-700 whitespace-nowrap"
                     >
                         매수/매도 기록
                     </button>
@@ -141,24 +141,24 @@ export default function InvestmentsPage() {
             </div>
 
             {/* 요약 카드 */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">총 매수 금액</p>
-                    <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">₩{summary.totalInvested.toLocaleString()}</p>
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                    <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">총 매수 금액</p>
+                    <p className="mt-1 sm:mt-2 text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">₩{summary.totalInvested.toLocaleString()}</p>
                 </div>
-                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">현재 평가 금액</p>
-                    <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">₩{summary.totalValue.toLocaleString()}</p>
+                <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                    <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">현재 평가 금액</p>
+                    <p className="mt-1 sm:mt-2 text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">₩{summary.totalValue.toLocaleString()}</p>
                 </div>
-                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">총 손익</p>
-                    <p className={`mt-2 text-2xl font-bold ${summary.totalProfit >= 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                    <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">총 손익</p>
+                    <p className={`mt-1 sm:mt-2 text-lg sm:text-2xl font-bold ${summary.totalProfit >= 0 ? 'text-red-500' : 'text-blue-500'}`}>
                         {summary.totalProfit >= 0 ? '+' : ''}₩{summary.totalProfit.toLocaleString()}
                     </p>
                 </div>
-                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">누적 수익률</p>
-                    <p className={`mt-2 text-2xl font-bold ${summary.profitRate >= 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                    <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">누적 수익률</p>
+                    <p className={`mt-1 sm:mt-2 text-lg sm:text-2xl font-bold ${summary.profitRate >= 0 ? 'text-red-500' : 'text-blue-500'}`}>
                         {summary.profitRate >= 0 ? '+' : ''}{summary.profitRate.toFixed(2)}%
                     </p>
                 </div>
@@ -174,10 +174,10 @@ export default function InvestmentsPage() {
                         <table className="min-w-full divide-y divide-gray-200 dark:divide-zinc-800">
                             <thead className="bg-gray-50 dark:bg-zinc-900">
                                 <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">종목</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">보유량 / 평단</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">현재가</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">평가액 / 수익률</th>
+                                    <th className="px-4 py-3 sm:px-6 text-left text-xs font-medium uppercase tracking-wider text-gray-500">종목</th>
+                                    <th className="px-4 py-3 sm:px-6 text-right text-xs font-medium uppercase tracking-wider text-gray-500">보유량 / 평단</th>
+                                    <th className="px-4 py-3 sm:px-6 text-right text-xs font-medium uppercase tracking-wider text-gray-500">현재가</th>
+                                    <th className="px-4 py-3 sm:px-6 text-right text-xs font-medium uppercase tracking-wider text-gray-500">평가액 / 수익률</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200 bg-white dark:divide-zinc-800 dark:bg-zinc-950">
@@ -188,18 +188,18 @@ export default function InvestmentsPage() {
                                     const rate = cost > 0 ? (profit / cost) * 100 : 0;
                                     return (
                                         <tr key={h.id} className="hover:bg-gray-50 dark:hover:bg-zinc-900/50">
-                                            <td className="px-6 py-4 whitespace-nowrap">
+                                            <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
                                                 <div className="text-sm font-medium text-gray-900 dark:text-white">{h.security.name}</div>
                                                 <div className="text-xs text-gray-500">{h.security.ticker} ({h.security.market})</div>
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                                            <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-right">
                                                 <div className="text-sm text-gray-900 dark:text-white">{h.quantity.toLocaleString()} 주</div>
                                                 <div className="text-xs text-gray-500">₩{h.avg_price.toLocaleString()}</div>
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                                            <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-right">
                                                 <div className="text-sm font-semibold text-gray-900 dark:text-white">₩{h.last_price.toLocaleString()}</div>
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                                            <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-right">
                                                 <div className="text-sm font-bold text-gray-900 dark:text-white">₩{value.toLocaleString()}</div>
                                                 <div className={`text-xs font-medium ${rate >= 0 ? 'text-red-500' : 'text-blue-500'}`}>
                                                     {rate >= 0 ? '+' : ''}{rate.toFixed(2)}%
@@ -240,7 +240,7 @@ export default function InvestmentsPage() {
                                     ))}
                                 </Pie>
                                 <Tooltip formatter={(v: any) => `₩${Number(v).toLocaleString()}`} />
-                                <Legend layout="vertical" align="right" verticalAlign="middle" />
+                                <Legend layout="horizontal" align="center" verticalAlign="bottom" wrapperStyle={{ paddingTop: '20px' }} />
                             </PieChart>
                         </ResponsiveContainer>
                     </div>

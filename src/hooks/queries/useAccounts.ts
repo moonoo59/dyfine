@@ -20,6 +20,6 @@ export function useAccounts() {
             return data;
         },
         enabled: !!householdId, // householdId가 있을 때만 실행
-        staleTime: 1000 * 60 * 5, // 5분 동안 캐시 유지
+        staleTime: 1000 * 60 * 60, // 1시간 동안 캐시 유지 (변경 빈도 낮음)
     });
 }

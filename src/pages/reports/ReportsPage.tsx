@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useTransactions, type TransactionFilters } from '@/hooks/queries/useTransactions';
 import FilterBar, { type FilterValues, getDefaultFilterValues } from '@/components/ui/FilterBar';
 import MonthPicker from '@/components/ui/MonthPicker';
+import { WaterfallChart } from '@/components/dashboard/WaterfallChart';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
 /** 색상 팔레트 (카테고리 차트용) */
@@ -133,6 +134,14 @@ export default function ReportsPage() {
                     <p className={`mt-1 text-2xl font-bold ${totalIncome - totalExpense >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                         ₩{(totalIncome - totalExpense).toLocaleString()}
                     </p>
+                </div>
+            </div>
+
+            {/* Waterfall 차트 */}
+            <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-4">📊 월간 순자산 흐름 (Waterfall)</h2>
+                <div className="h-72 sm:h-80">
+                    <WaterfallChart income={incomeByCategory} expense={expenseByCategory} netChange={totalIncome - totalExpense} />
                 </div>
             </div>
 

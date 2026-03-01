@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
+import { useThemeStore } from '@/store/themeStore';
 import { useNotifications } from '@/hooks/queries/useNotifications';
 
 export default function AppLayout() {
     const { user, signOut } = useAuthStore();
+    const { theme, toggleTheme } = useThemeStore();
     const navigate = useNavigate();
     const location = useLocation();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -109,6 +111,14 @@ export default function AppLayout() {
                         </div>
 
                         <div className="hidden sm:ml-6 sm:flex sm:items-center sm:space-x-4">
+                            {/* 다크모드 토글 버튼 */}
+                            <button
+                                onClick={toggleTheme}
+                                className="rounded-md p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 transition-colors"
+                                title="테마 변경"
+                            >
+                                {theme === 'dark' ? '🌞' : '🌙'}
+                            </button>
                             {/* 알림 아이콘 + 미읽음 뱃지 */}
                             <Link to="/notifications" className="relative rounded-md p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
                                 🔔
@@ -194,8 +204,14 @@ export default function AppLayout() {
                             </div>
                         </div>
                         <div className="border-t border-gray-200 pb-3 pt-4 dark:border-zinc-800">
-                            <div className="flex items-center px-4">
+                            <div className="flex items-center justify-between px-4">
                                 <div className="text-sm font-medium text-gray-500 dark:text-gray-400">{user?.email}</div>
+                                <button
+                                    onClick={toggleTheme}
+                                    className="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-zinc-800 dark:hover:text-gray-300 transition-colors"
+                                >
+                                    {theme === 'dark' ? '🌞 다크 모드 끄기' : '🌙 다크 모드 켜기'}
+                                </button>
                             </div>
                             <div className="mt-3 space-y-1">
                                 <button

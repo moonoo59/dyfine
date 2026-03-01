@@ -5,6 +5,8 @@ import { WaterfallChart } from '@/components/dashboard/WaterfallChart';
 import { BalanceChart } from '@/components/dashboard/BalanceChart';
 import { FlowChart } from '@/components/dashboard/FlowChart';
 import { RecentTransactionsList } from '@/components/dashboard/RecentTransactionsList';
+import { GoalWidget } from '@/components/dashboard/GoalWidget';
+import { ExchangeRateWidget } from '@/components/dashboard/ExchangeRateWidget';
 import MonthPicker from '@/components/ui/MonthPicker';
 
 /**
@@ -131,12 +133,17 @@ export default function DashboardPage() {
                 </div>
             </div>
 
-            {/* 2. 차트 영역 (2x2 그리드) */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                {/* 좌상: 자금 흐름 (Sankey 대체) */}
-                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+            {/* 2. 차트 및 목표 위젯 영역 */}
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {/* 1열: 자산 목표 트래커 */}
+                <div className="lg:col-span-1 h-80">
+                    <GoalWidget currentAmount={totalAssets} title="총 자산 목표" />
+                </div>
+
+                {/* 2역: 자금 흐름 (Sankey 대체) */}
+                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 lg:col-span-2">
                     <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-4">💸 자금 흐름 (이체)</h2>
-                    <div className="h-64">
+                    <div className="h-64 sm:h-80">
                         <FlowChart data={flowData} />
                     </div>
                 </div>
@@ -166,50 +173,58 @@ export default function DashboardPage() {
                 </div>
             </div>
 
-            {/* 3. 해야 할 일 + 최근 거래 (2열) */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                {/* 해야 할 일 */}
-                <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden dark:border-zinc-800 dark:bg-zinc-950">
-                    <div className="border-b border-gray-200 bg-gray-50 px-6 py-4 dark:border-zinc-800 dark:bg-zinc-900/50">
-                        <h3 className="text-base font-semibold text-gray-900 dark:text-white">📋 해야 할 일</h3>
+            {/* 3. 하단 위젯 및 거래 리스트 (3열) */}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                {/* 좌측: 해야 할 일 + 환율 위젯 (수직 배치) */}
+                <div className="space-y-6">
+                    {/* 해야 할 일 */}
+                    <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden dark:border-zinc-800 dark:bg-zinc-950">
+                        <div className="border-b border-gray-200 bg-gray-50 px-6 py-4 dark:border-zinc-800 dark:bg-zinc-900/50">
+                            <h3 className="text-base font-semibold text-gray-900 dark:text-white">📋 해야 할 일</h3>
+                        </div>
+                        <div className="p-6">
+                            {pendingTransferCount > 0 && (
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between p-3 rounded-lg bg-amber-50 dark:bg-amber-900/10">
+                                        <div className="flex items-center space-x-2">
+                                            <span className="text-amber-600">⚠️</span>
+                                            <span className="text-sm font-medium text-amber-800 dark:text-amber-300">미확인 자동이체</span>
+                                        </div>
+                                        <a href="/transfers" className="text-sm text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 font-medium">
+                                            {pendingTransferCount}건 확인하기 →
+                                        </a>
+                                    </div>
+                                </div>
+                            )}
+
+                            {pendingLoanCount > 0 && (
+                                <div className="space-y-3 mt-3">
+                                    <div className="flex items-center justify-between p-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/10">
+                                        <div className="flex items-center space-x-2">
+                                            <span className="text-indigo-600">📝</span>
+                                            <span className="text-sm font-medium text-indigo-800 dark:text-indigo-300">대출 납입 예정</span>
+                                        </div>
+                                        <a href="/loans" className="text-sm text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 font-medium">
+                                            {pendingLoanCount}건 확인하기 →
+                                        </a>
+                                    </div>
+                                </div>
+                            )}
+
+                            {pendingTransferCount === 0 && pendingLoanCount === 0 && (
+                                <p className="text-sm text-green-600 dark:text-green-400">✅ 모든 작업이 완료되었습니다!</p>
+                            )}
+                        </div>
                     </div>
-                    <div className="p-6">
-                        {pendingTransferCount > 0 && (
-                            <div className="space-y-3">
-                                <div className="flex items-center justify-between p-3 rounded-lg bg-amber-50 dark:bg-amber-900/10">
-                                    <div className="flex items-center space-x-2">
-                                        <span className="text-amber-600">⚠️</span>
-                                        <span className="text-sm font-medium text-amber-800 dark:text-amber-300">미확인 자동이체</span>
-                                    </div>
-                                    <a href="/transfers" className="text-sm text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 font-medium">
-                                        {pendingTransferCount}건 확인하기 →
-                                    </a>
-                                </div>
-                            </div>
-                        )}
 
-                        {pendingLoanCount > 0 && (
-                            <div className="space-y-3 mt-3">
-                                <div className="flex items-center justify-between p-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/10">
-                                    <div className="flex items-center space-x-2">
-                                        <span className="text-indigo-600">📝</span>
-                                        <span className="text-sm font-medium text-indigo-800 dark:text-indigo-300">대출 납입 예정</span>
-                                    </div>
-                                    <a href="/loans" className="text-sm text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 font-medium">
-                                        {pendingLoanCount}건 확인하기 →
-                                    </a>
-                                </div>
-                            </div>
-                        )}
-
-                        {pendingTransferCount === 0 && pendingLoanCount === 0 && (
-                            <p className="text-sm text-green-600 dark:text-green-400">✅ 모든 작업이 완료되었습니다!</p>
-                        )}
+                    {/* 환율 위젯 */}
+                    <div className="h-64">
+                        <ExchangeRateWidget />
                     </div>
                 </div>
 
-                {/* 최근 거래 내역 */}
-                <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden dark:border-zinc-800 dark:bg-zinc-950">
+                {/* 우측: 최근 거래 내역 (2열 차지) */}
+                <div className="lg:col-span-2 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden dark:border-zinc-800 dark:bg-zinc-950">
                     <div className="border-b border-gray-200 bg-gray-50 px-6 py-4 dark:border-zinc-800 dark:bg-zinc-900/50">
                         <h3 className="text-base font-semibold text-gray-900 dark:text-white">🕐 최근 거래 내역</h3>
                     </div>
