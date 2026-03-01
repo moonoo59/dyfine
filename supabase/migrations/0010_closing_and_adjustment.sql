@@ -16,6 +16,7 @@ ALTER TABLE adjustment_links ENABLE ROW LEVEL SECURITY;
 -- RLS 정책: household_members 기반 접근 제어
 -- adjustment_links는 transaction_entries를 통해 간접적으로 household가 결정되므로
 -- entry 소유 가구의 멤버만 접근 가능
+DROP POLICY IF EXISTS "Members can manage adjustment_links" ON adjustment_links;
 CREATE POLICY "Members can manage adjustment_links"
     ON adjustment_links FOR ALL TO authenticated
     USING (

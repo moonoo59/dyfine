@@ -47,6 +47,6 @@ SELECT mc.year_month, COUNT(te.id) as total_entries,
 FROM month_closings mc
 JOIN transaction_entries te
   ON te.household_id = mc.household_id
-  AND date_trunc('month', te.occurred_at) = mc.year_month::timestamp
+  AND date_trunc('month', te.occurred_at) = TO_TIMESTAMP(mc.year_month, 'YYYY-MM')
 GROUP BY mc.year_month
 ORDER BY mc.year_month;

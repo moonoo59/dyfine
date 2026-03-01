@@ -81,46 +81,54 @@ ALTER TABLE month_closings ENABLE ROW LEVEL SECURITY;
 
 -- 1. Households
 -- 인증된 사용자는 가구를 생성할 수 있습니다
+DROP POLICY IF EXISTS "Users can create households" ON households;
 CREATE POLICY "Users can create households"
   ON households FOR INSERT
   TO authenticated
   WITH CHECK (true);
 
 -- 가구 구성원만 해당 가구를 조회할 수 있습니다
+DROP POLICY IF EXISTS "Members can view households" ON households;
 CREATE POLICY "Members can view households"
   ON households FOR SELECT
   TO authenticated
   USING (is_household_member(id));
 
 -- 가구 오너만 가구 정보를 수정할 수 있습니다
+DROP POLICY IF EXISTS "Owners can update households" ON households;
 CREATE POLICY "Owners can update households"
   ON households FOR UPDATE
   TO authenticated
   USING (is_household_owner(id));
 
 -- 2. Household Members
+DROP POLICY IF EXISTS "Users can view members of their households" ON household_members;
 CREATE POLICY "Users can view members of their households"
   ON household_members FOR SELECT
   TO authenticated
   USING (user_id = auth.uid() OR is_household_member(household_id));
 
 -- 자기 자신은 구성원으로 등록할 수 있습니다 (온보딩 가입)
+DROP POLICY IF EXISTS "Users can insert themselves" ON household_members;
 CREATE POLICY "Users can insert themselves"
   ON household_members FOR INSERT
   TO authenticated
   WITH CHECK (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Owners can manage members" ON household_members;
 CREATE POLICY "Owners can manage members"
   ON household_members FOR UPDATE
   TO authenticated
   USING (is_household_owner(household_id));
 
+DROP POLICY IF EXISTS "Owners can delete members" ON household_members;
 CREATE POLICY "Owners can delete members"
   ON household_members FOR DELETE
   TO authenticated
   USING (is_household_owner(household_id));
 
 -- 3. Profiles
+DROP POLICY IF EXISTS "Users can manage their profile" ON profiles;
 CREATE POLICY "Users can manage their profile"
   ON profiles FOR ALL
   TO authenticated
@@ -128,17 +136,23 @@ CREATE POLICY "Users can manage their profile"
   WITH CHECK (user_id = auth.uid());
 
 -- 4. Master Data
+DROP POLICY IF EXISTS "Members can manage account_groups" ON account_groups;
 CREATE POLICY "Members can manage account_groups" ON account_groups FOR ALL TO authenticated USING (is_household_member(household_id)) WITH CHECK (is_household_member(household_id));
+DROP POLICY IF EXISTS "Members can manage accounts" ON accounts;
 CREATE POLICY "Members can manage accounts" ON accounts FOR ALL TO authenticated USING (is_household_member(household_id)) WITH CHECK (is_household_member(household_id));
+DROP POLICY IF EXISTS "Members can manage categories" ON categories;
 CREATE POLICY "Members can manage categories" ON categories FOR ALL TO authenticated USING (is_household_member(household_id)) WITH CHECK (is_household_member(household_id));
+DROP POLICY IF EXISTS "Members can manage tags" ON tags;
 CREATE POLICY "Members can manage tags" ON tags FOR ALL TO authenticated USING (is_household_member(household_id)) WITH CHECK (is_household_member(household_id));
 
 -- 5. Transactions
+DROP POLICY IF EXISTS "Members can manage transaction_entries" ON transaction_entries;
 CREATE POLICY "Members can manage transaction_entries"
   ON transaction_entries FOR ALL TO authenticated
   USING (is_household_member(household_id))
   WITH CHECK (is_household_member(household_id));
 
+DROP POLICY IF EXISTS "Members can manage transaction_lines" ON transaction_lines;
 CREATE POLICY "Members can manage transaction_lines"
   ON transaction_lines FOR ALL TO authenticated
   USING (
@@ -148,6 +162,7 @@ CREATE POLICY "Members can manage transaction_lines"
     )
   );
 
+DROP POLICY IF EXISTS "Members can manage entry_tags" ON entry_tags;
 CREATE POLICY "Members can manage entry_tags"
   ON entry_tags FOR ALL TO authenticated
   USING (
@@ -158,7 +173,11 @@ CREATE POLICY "Members can manage entry_tags"
   );
 
 -- 6. Auto Transfer / Budget / Closing
+DROP POLICY IF EXISTS "Members can manage auto_transfer_rules" ON auto_transfer_rules;
 CREATE POLICY "Members can manage auto_transfer_rules" ON auto_transfer_rules FOR ALL TO authenticated USING (is_household_member(household_id)) WITH CHECK (is_household_member(household_id));
+DROP POLICY IF EXISTS "Members can manage auto_transfer_instances" ON auto_transfer_instances;
 CREATE POLICY "Members can manage auto_transfer_instances" ON auto_transfer_instances FOR ALL TO authenticated USING (is_household_member(household_id)) WITH CHECK (is_household_member(household_id));
+DROP POLICY IF EXISTS "Members can manage budget_templates" ON budget_templates;
 CREATE POLICY "Members can manage budget_templates" ON budget_templates FOR ALL TO authenticated USING (is_household_member(household_id)) WITH CHECK (is_household_member(household_id));
+DROP POLICY IF EXISTS "Members can manage month_closings" ON month_closings;
 CREATE POLICY "Members can manage month_closings" ON month_closings FOR ALL TO authenticated USING (is_household_member(household_id)) WITH CHECK (is_household_member(household_id));

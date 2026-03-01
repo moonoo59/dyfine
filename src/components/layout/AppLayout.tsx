@@ -25,6 +25,7 @@ export default function AppLayout() {
         { name: '자동 이체', path: '/transfers' },
         { name: '예산 관리', path: '/budgets' },
         { name: '대출', path: '/loans' },
+        { name: '투자', path: '/investments' },
         { name: '리포트', path: '/reports' },
     ];
 

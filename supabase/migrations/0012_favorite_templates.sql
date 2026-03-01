@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS favorite_templates (
 
 ALTER TABLE favorite_templates ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Members can manage favorite_templates" ON favorite_templates;
 CREATE POLICY "Members can manage favorite_templates"
     ON favorite_templates FOR ALL TO authenticated
     USING (is_household_member(household_id))

@@ -17,6 +17,7 @@ import ClassificationRulesPage from '@/pages/settings/ClassificationRulesPage';
 import ReportsPage from '@/pages/reports/ReportsPage';
 import NotificationsPage from '@/pages/notifications/NotificationsPage';
 import LoansPage from '@/pages/loans/LoansPage';
+import InvestmentsPage from '@/pages/investments/InvestmentsPage';
 
 const Loading = () => <div className="flex h-screen items-center justify-center text-lg font-medium text-zinc-500">Loading...</div>;
 
@@ -87,6 +88,7 @@ function App() {
                         <Route path="reports" element={<ReportsPage />} />
                         <Route path="notifications" element={<NotificationsPage />} />
                         <Route path="loans" element={<LoansPage />} />
+                        <Route path="investments" element={<InvestmentsPage />} />
                         <Route path="*" element={<Navigate to="/" replace />} />
                     </Route>
                 )}

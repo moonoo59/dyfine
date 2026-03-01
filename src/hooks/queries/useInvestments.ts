@@ -110,3 +110,66 @@ export function useRecordTrade() {
         },
     });
 }
+
+/**
+ * 보유 자산 스냅샷 저장 뮤테이션
+ */
+export function useCreateHoldingSnapshot() {
+    const { householdId } = useAuthStore();
+
+    return useMutation({
+        mutationFn: async (date?: string) => {
+            if (!householdId) throw new Error('No household ID');
+            const { error } = await supabase.rpc('update_holding_snapshot', {
+                p_household_id: householdId,
+                p_snapshot_date: date || new Date().toISOString().split('T')[0],
+            });
+            if (error) throw error;
+        }
+    });
+}
+
+/**
+ * 여러 종목 현재가 일괄 갱신 뮤테이션
+ */
+export function useUpdateSecurityPrices() {
+    const queryClient = useQueryClient();
+    const { householdId } = useAuthStore();
+
+    return useMutation({
+        mutationFn: async (prices: { security_id: number; price: number }[]) => {
+            if (!householdId) throw new Error('No household ID');
+            const { error } = await supabase.rpc('update_security_prices', {
+                p_household_id: householdId,
+                p_prices: prices,
+            });
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['holdings', householdId] });
+        }
+    });
+}
+
+/**
+ * 매매 기록(히스토리) 조회 훅
+ */
+export function useTradeHistory() {
+    const { householdId } = useAuthStore();
+
+    return useQuery({
+        queryKey: ['tradeHistory', householdId],
+        queryFn: async () => {
+            if (!householdId) throw new Error('No household ID');
+            const { data, error } = await supabase
+                .from('transaction_entries')
+                .select('*, lines:transaction_lines(*, account:accounts(*))')
+                .eq('household_id', householdId)
+                .or('memo.ilike.%매수%,memo.ilike.%매도%')
+                .order('occurred_at', { ascending: false });
+            if (error) throw error;
+            return data;
+        },
+        enabled: !!householdId,
+    });
+}

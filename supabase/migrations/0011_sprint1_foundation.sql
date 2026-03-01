@@ -17,22 +17,26 @@ DROP POLICY IF EXISTS "Members can update transaction_entries" ON transaction_en
 DROP POLICY IF EXISTS "Members can delete transaction_entries" ON transaction_entries;
 
 -- SELECT: 가구 멤버는 조회 가능
+DROP POLICY IF EXISTS "Members can select transaction_entries" ON transaction_entries;
 CREATE POLICY "Members can select transaction_entries"
     ON transaction_entries FOR SELECT TO authenticated
     USING (is_household_member(household_id));
 
 -- INSERT: 가구 멤버는 삽입 가능
+DROP POLICY IF EXISTS "Members can insert transaction_entries" ON transaction_entries;
 CREATE POLICY "Members can insert transaction_entries"
     ON transaction_entries FOR INSERT TO authenticated
     WITH CHECK (is_household_member(household_id));
 
 -- UPDATE: 가구 멤버 + is_locked=false인 전표만 수정 가능
+DROP POLICY IF EXISTS "Members can update unlocked transaction_entries" ON transaction_entries;
 CREATE POLICY "Members can update unlocked transaction_entries"
     ON transaction_entries FOR UPDATE TO authenticated
     USING (is_household_member(household_id) AND is_locked = false)
     WITH CHECK (is_household_member(household_id));
 
 -- DELETE: 가구 멤버 + is_locked=false인 전표만 삭제 가능
+DROP POLICY IF EXISTS "Members can delete unlocked transaction_entries" ON transaction_entries;
 CREATE POLICY "Members can delete unlocked transaction_entries"
     ON transaction_entries FOR DELETE TO authenticated
     USING (is_household_member(household_id) AND is_locked = false);
@@ -54,6 +58,7 @@ CREATE TABLE IF NOT EXISTS account_groups (
 
 ALTER TABLE account_groups ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Members can manage account_groups" ON account_groups;
 CREATE POLICY "Members can manage account_groups"
     ON account_groups FOR ALL TO authenticated
     USING (is_household_member(household_id))
@@ -80,6 +85,7 @@ CREATE TABLE IF NOT EXISTS notifications (
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
 -- 본인 알림만 조회/관리 가능
+DROP POLICY IF EXISTS "Users can manage own notifications" ON notifications;
 CREATE POLICY "Users can manage own notifications"
     ON notifications FOR ALL TO authenticated
     USING (user_id = auth.uid())
@@ -107,12 +113,14 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 
 -- 가구 멤버는 조회만 가능 (INSERT는 RPC/서버에서만)
+DROP POLICY IF EXISTS "Members can view audit_logs" ON audit_logs;
 CREATE POLICY "Members can view audit_logs"
     ON audit_logs FOR SELECT TO authenticated
     USING (is_household_member(household_id));
 
 -- INSERT는 서비스 역할(SECURITY DEFINER RPC)에서만 수행하므로
 -- 일반 사용자의 직접 INSERT를 허용하되, 변조 방지는 별도 관리
+DROP POLICY IF EXISTS "Members can insert audit_logs" ON audit_logs;
 CREATE POLICY "Members can insert audit_logs"
     ON audit_logs FOR INSERT TO authenticated
     WITH CHECK (is_household_member(household_id));

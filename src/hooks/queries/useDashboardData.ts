@@ -30,6 +30,14 @@ export interface DashboardData {
     dailyBalances: { date: string; balance: number }[];
     /** 자금 흐름 데이터 (Sankey 대체 - 계좌 간 이체 흐름) */
     flowData: { from: string; to: string; amount: number }[];
+    /** 총 투자 평가 금액 */
+    investmentValue: number;
+    /** 총 투자 수익(손실)액 */
+    investmentProfit: number;
+    /** 총 투자 수익률 */
+    investmentProfitRate: number;
+    /** 미납/예정 대출 건수 (이번 달) */
+    pendingLoanCount: number;
 }
 
 /**
@@ -221,6 +229,34 @@ export function useDashboardData(startDate: string, endDate: string) {
                 dailyBalances.push({ date: ds, balance: runningBalance });
             }
 
+            // === 8. 투자 자산 평가액 및 수익률 ===
+            const { data: holdingsData } = await supabase
+                .from('holdings')
+                .select('quantity, avg_price, last_price')
+                .eq('household_id', householdId)
+                .gt('quantity', 0);
+
+            let investmentInvested = 0;
+            let investmentValue = 0;
+
+            holdingsData?.forEach(h => {
+                investmentInvested += (h.quantity * h.avg_price);
+                investmentValue += (h.quantity * h.last_price);
+            });
+
+            const investmentProfit = investmentValue - investmentInvested;
+            const investmentProfitRate = investmentInvested > 0 ? (investmentProfit / investmentInvested) * 100 : 0;
+
+            // === 9. 이번 달 대출 납입 예정 (간단하게 활성 대출 건수로 표시) ===
+            // 향후 custom_schedule 또는 ledger_entries와 연동 가능. 현재는 활성 대출 수첩 수
+            const { data: loansData } = await supabase
+                .from('loans')
+                .select('id, principal_original, interest_pay_day')
+                .eq('household_id', householdId)
+                .eq('is_active', true);
+
+            const pendingLoanCount = loansData?.length || 0;
+
             return {
                 accountBalances,
                 totalAssets,
@@ -235,6 +271,10 @@ export function useDashboardData(startDate: string, endDate: string) {
                 pendingTransferAmount,
                 dailyBalances,
                 flowData,
+                investmentValue,
+                investmentProfit,
+                investmentProfitRate,
+                pendingLoanCount,
             };
         },
         enabled: !!householdId,

@@ -3,21 +3,25 @@
 -- =============================================================
 
 -- 1. 대출 관련 RLS 정책 추가 (0003에서 RLS enable만 했고 정책 미작성)
+DROP POLICY IF EXISTS "Members can manage loans" ON loans;
 CREATE POLICY "Members can manage loans"
     ON loans FOR ALL TO authenticated
     USING (is_household_member(household_id))
     WITH CHECK (is_household_member(household_id));
 
+DROP POLICY IF EXISTS "Members can manage loan_rate_history" ON loan_rate_history;
 CREATE POLICY "Members can manage loan_rate_history"
     ON loan_rate_history FOR ALL TO authenticated
     USING (EXISTS (SELECT 1 FROM loans WHERE loans.id = loan_rate_history.loan_id AND is_household_member(loans.household_id)))
     WITH CHECK (EXISTS (SELECT 1 FROM loans WHERE loans.id = loan_rate_history.loan_id AND is_household_member(loans.household_id)));
 
+DROP POLICY IF EXISTS "Members can manage loan_ledger_entries" ON loan_ledger_entries;
 CREATE POLICY "Members can manage loan_ledger_entries"
     ON loan_ledger_entries FOR ALL TO authenticated
     USING (EXISTS (SELECT 1 FROM loans WHERE loans.id = loan_ledger_entries.loan_id AND is_household_member(loans.household_id)))
     WITH CHECK (EXISTS (SELECT 1 FROM loans WHERE loans.id = loan_ledger_entries.loan_id AND is_household_member(loans.household_id)));
 
+DROP POLICY IF EXISTS "Members can manage loan_events" ON loan_events;
 CREATE POLICY "Members can manage loan_events"
     ON loan_events FOR ALL TO authenticated
     USING (EXISTS (SELECT 1 FROM loans WHERE loans.id = loan_events.loan_id AND is_household_member(loans.household_id)))

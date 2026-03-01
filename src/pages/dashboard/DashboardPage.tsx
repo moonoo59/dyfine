@@ -51,7 +51,7 @@ export default function DashboardPage() {
         totalAssets, cashBalance, periodIncome, periodExpense, netChange,
         expenseByCategory, incomeByCategory, recentTransactions,
         pendingTransferCount, pendingTransferAmount,
-        dailyBalances, flowData,
+        dailyBalances, flowData, investmentValue, investmentProfitRate, pendingLoanCount
     } = data;
 
     return (
@@ -62,8 +62,8 @@ export default function DashboardPage() {
                 <MonthPicker year={selectedYear} month={selectedMonth} onChange={handleMonthChange} />
             </div>
 
-            {/* 1. KPI 카드 5개 */}
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+            {/* 1. KPI 카드 */}
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                 {/* 총 자산 */}
                 <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
                     <p className="text-xs font-medium text-gray-500 dark:text-gray-400">총 자산</p>
@@ -76,6 +76,28 @@ export default function DashboardPage() {
                     <p className="text-xs font-medium text-gray-500 dark:text-gray-400">현금성 잔액</p>
                     <p className="mt-1 text-2xl font-bold text-indigo-600 dark:text-indigo-400">
                         ₩{cashBalance.toLocaleString()}
+                    </p>
+                </div>
+                {/* 투자 평가 자산 */}
+                <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400">투자 평가 자산 (수익률)</p>
+                    <div className="flex items-baseline space-x-2">
+                        <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">
+                            ₩{investmentValue.toLocaleString()}
+                        </p>
+                        <span className={`text-sm font-medium ${investmentProfitRate >= 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                            {investmentProfitRate > 0 ? '+' : ''}{investmentProfitRate.toFixed(2)}%
+                        </span>
+                    </div>
+                </div>
+                {/* 대출 납입 예정 */}
+                <div className={`rounded-xl border p-5 shadow-sm ${pendingLoanCount > 0
+                    ? 'border-indigo-200 bg-indigo-50 dark:border-indigo-900/30 dark:bg-indigo-900/10'
+                    : 'border-gray-200 bg-white dark:border-zinc-800 dark:bg-zinc-950'
+                    }`}>
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400">대출 납입 예정</p>
+                    <p className={`mt-1 text-2xl font-bold ${pendingLoanCount > 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-900 dark:text-white'}`}>
+                        {pendingLoanCount}건
                     </p>
                 </div>
                 {/* 수입 */}
@@ -93,17 +115,19 @@ export default function DashboardPage() {
                     </p>
                 </div>
                 {/* 미확인 자동이체 */}
-                <div className={`rounded-xl border p-5 shadow-sm ${pendingTransferCount > 0
+                <div className="lg:col-span-2">
+                    <div className={`h-full rounded-xl border p-5 shadow-sm ${pendingTransferCount > 0
                         ? 'border-amber-200 bg-amber-50 dark:border-amber-900/30 dark:bg-amber-900/10'
                         : 'border-gray-200 bg-white dark:border-zinc-800 dark:bg-zinc-950'
-                    }`}>
-                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400">미확인 이체</p>
-                    <p className={`mt-1 text-2xl font-bold ${pendingTransferCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-900 dark:text-white'}`}>
-                        {pendingTransferCount}건
-                    </p>
-                    {pendingTransferCount > 0 && (
-                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">₩{pendingTransferAmount.toLocaleString()}</p>
-                    )}
+                        }`}>
+                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">미확인 이체</p>
+                        <p className={`mt-1 text-2xl font-bold ${pendingTransferCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-900 dark:text-white'}`}>
+                            {pendingTransferCount}건
+                        </p>
+                        {pendingTransferCount > 0 && (
+                            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">₩{pendingTransferAmount.toLocaleString()}</p>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -150,7 +174,7 @@ export default function DashboardPage() {
                         <h3 className="text-base font-semibold text-gray-900 dark:text-white">📋 해야 할 일</h3>
                     </div>
                     <div className="p-6">
-                        {pendingTransferCount > 0 ? (
+                        {pendingTransferCount > 0 && (
                             <div className="space-y-3">
                                 <div className="flex items-center justify-between p-3 rounded-lg bg-amber-50 dark:bg-amber-900/10">
                                     <div className="flex items-center space-x-2">
@@ -162,7 +186,23 @@ export default function DashboardPage() {
                                     </a>
                                 </div>
                             </div>
-                        ) : (
+                        )}
+
+                        {pendingLoanCount > 0 && (
+                            <div className="space-y-3 mt-3">
+                                <div className="flex items-center justify-between p-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/10">
+                                    <div className="flex items-center space-x-2">
+                                        <span className="text-indigo-600">📝</span>
+                                        <span className="text-sm font-medium text-indigo-800 dark:text-indigo-300">대출 납입 예정</span>
+                                    </div>
+                                    <a href="/loans" className="text-sm text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 font-medium">
+                                        {pendingLoanCount}건 확인하기 →
+                                    </a>
+                                </div>
+                            </div>
+                        )}
+
+                        {pendingTransferCount === 0 && pendingLoanCount === 0 && (
                             <p className="text-sm text-green-600 dark:text-green-400">✅ 모든 작업이 완료되었습니다!</p>
                         )}
                     </div>

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useHoldings, useRecordTrade } from '@/hooks/queries/useInvestments';
+import { useHoldings, useRecordTrade, useUpdateSecurityPrices } from '@/hooks/queries/useInvestments';
 import { useAccounts } from '@/hooks/queries/useAccounts';
 import { useCategories } from '@/hooks/queries/useCategories';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
@@ -15,12 +15,16 @@ export default function InvestmentsPage() {
     const { data: accountsData } = useAccounts();
     const { data: categoriesData } = useCategories();
     const tradeMutation = useRecordTrade();
+    const updatePricesMutation = useUpdateSecurityPrices();
 
     const accounts = accountsData || [];
     const categories = categoriesData || [];
 
     // 모달 상태
     const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
+    const [isPriceModalOpen, setIsPriceModalOpen] = useState(false);
+
+    // 거래 입력 상태
     const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
     const [selectedAccountId, setSelectedAccountId] = useState<number | ''>('');
     const [ticker, setTicker] = useState('');
@@ -30,6 +34,19 @@ export default function InvestmentsPage() {
     const [price, setPrice] = useState(0);
     const [fee, setFee] = useState(0);
     const [selectedCategoryId, setSelectedCategoryId] = useState<number | ''>('');
+
+    // 가격 갱신 상태 관리
+    const [updatedPrices, setUpdatedPrices] = useState<Record<number, number>>({});
+
+    const handleOpenPriceModal = () => {
+        if (!holdings) return;
+        const initialPrices: Record<number, number> = {};
+        holdings.forEach(h => {
+            initialPrices[h.security.id] = h.last_price;
+        });
+        setUpdatedPrices(initialPrices);
+        setIsPriceModalOpen(true);
+    };
 
     // 요약 익스포트
     const summary = useMemo(() => {
@@ -81,6 +98,21 @@ export default function InvestmentsPage() {
         }
     };
 
+    const handlePriceUpdateSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const prices = Object.entries(updatedPrices).map(([securityId, priceStr]) => ({
+            security_id: Number(securityId),
+            price: Number(priceStr)
+        }));
+
+        try {
+            await updatePricesMutation.mutateAsync(prices);
+            setIsPriceModalOpen(false);
+        } catch (error: any) {
+            alert('가격 갱신 실패: ' + error.message);
+        }
+    };
+
     if (isHoldingsLoading) return <div className="p-8 text-center text-zinc-500">투자 데이터를 불러오는 중...</div>;
 
     return (
@@ -92,6 +124,12 @@ export default function InvestmentsPage() {
                     <p className="text-sm text-gray-500 dark:text-gray-400">보유 자산 현황 및 수익률을 실시간으로 확인합니다.</p>
                 </div>
                 <div className="flex space-x-2">
+                    <button
+                        onClick={handleOpenPriceModal}
+                        className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700"
+                    >
+                        현재가 갱신
+                    </button>
                     <button
                         onClick={() => { setTradeType('buy'); setIsTradeModalOpen(true); }}
                         className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700"
@@ -324,6 +362,49 @@ export default function InvestmentsPage() {
                                     className={`rounded-md px-4 py-2 text-sm text-white transition-colors ${tradeType === 'buy' ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-500 hover:bg-blue-600'} disabled:opacity-50`}
                                 >
                                     {tradeMutation.isPending ? '저장 중...' : `${tradeType === 'buy' ? '매수' : '매도'} 기록`}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+            {/* 현재가 일괄 갱신 모달 */}
+            {isPriceModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-zinc-900">
+                        <h2 className="mb-4 text-lg font-bold text-gray-900 dark:text-white">현재가 일괄 갱신</h2>
+                        <form onSubmit={handlePriceUpdateSubmit} className="space-y-4">
+                            <div className="max-h-64 overflow-y-auto pr-2 space-y-4">
+                                {holdings?.map(h => (
+                                    <div key={h.security.id} className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-sm font-medium text-gray-900 dark:text-white">{h.security.name}</p>
+                                            <p className="text-xs text-gray-500">{h.security.ticker} ({h.security.market})</p>
+                                        </div>
+                                        <div className="w-1/2">
+                                            <CurrencyInput
+                                                value={updatedPrices[h.security.id] || 0}
+                                                onChange={(val) => setUpdatedPrices(prev => ({ ...prev, [h.security.id]: val }))}
+                                                className="block w-full rounded-md border border-gray-300 py-1 pr-8 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-zinc-800">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsPriceModalOpen(false)}
+                                    className="rounded-md border border-gray-300 px-4 py-2 text-sm dark:border-zinc-700 dark:text-gray-300"
+                                >
+                                    취소
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={updatePricesMutation.isPending}
+                                    className="rounded-md bg-green-500 px-4 py-2 text-sm text-white hover:bg-green-600 disabled:opacity-50"
+                                >
+                                    {updatePricesMutation.isPending ? '저장 중...' : '저장'}
                                 </button>
                             </div>
                         </form>

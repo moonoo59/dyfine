@@ -4,7 +4,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useClosingHistory } from '@/hooks/queries/useClosingHistory';
 import { useTransferInstances } from '@/hooks/queries/useTransferInstances';
 import { useBudgets } from '@/hooks/queries/useBudgets';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 import MonthPicker from '@/components/ui/MonthPicker';
 
 /**
@@ -60,6 +60,38 @@ export default function ClosingPage() {
         return closings.find(c => c.year_month === yearMonth);
     }, [closings, yearMonth]);
 
+    // 대출 납입액 미연결(납입 누락) 항목 조회 (현재 활성 대출 기준 간이 체크)
+    const { data: pendingLoansData } = useQuery({
+        queryKey: ['pendingLoans', householdId, yearMonth],
+        queryFn: async () => {
+            if (!householdId) return 0;
+            // 이번 달에 활성화된 대출 목록을 가져온 후, transaction_entries에 해당 대출 연결 건이 있는지 간이 체크
+            // (실제 프로덕션에서는 loan_ledger_entries 상태를 확인하는 것이 더 정확함)
+            const { data: loans } = await supabase
+                .from('loans')
+                .select('id')
+                .eq('household_id', householdId)
+                .eq('is_active', true);
+
+            // 단순화를 위해 현재 활성 대출 건수를 반환하고, 이번 달 지출 내역 중 '대출' 관련 메모가 없으면 경고
+            const { data: txns } = await supabase
+                .from('transaction_entries')
+                .select('id')
+                .eq('household_id', householdId)
+                .gte('occurred_at', `${yearMonth}-01`)
+                .lte('occurred_at', `${yearMonth}-31T23:59:59`)
+                .or('memo.ilike.%대출%,memo.ilike.%상환%');
+
+            const hasLoanPayments = txns && txns.length > 0;
+            const activeLoansCount = loans?.length || 0;
+
+            // 활성 대출이 있는데 이번 달 상환 내역이 없으면 누락으로 간주 (간이 체크)
+            return activeLoansCount > 0 && !hasLoanPayments ? activeLoansCount : 0;
+        },
+        enabled: !!householdId,
+    });
+    const pendingLoanWarnings = pendingLoansData || 0;
+
     // 예산 초과 항목 계산
     const overBudgetItems = useMemo(() => {
         return templates
@@ -94,6 +126,14 @@ export default function ClosingPage() {
             });
 
             if (error) throw error;
+
+            // 투자 코어: 월 마감 시 투자 자산 스냅샷 동시 생성
+            // 마감 월의 마지막 날짜를 구해서 스냅샷 날짜로 지정
+            const lastDayOfMonth = new Date(selectedYear, selectedMonth, 0).toISOString().split('T')[0];
+            await supabase.rpc('update_holding_snapshot', {
+                p_household_id: householdId,
+                p_snapshot_date: lastDayOfMonth,
+            });
 
             // 캐시 무효화
             queryClient.invalidateQueries({ queryKey: ['closings', householdId] });
@@ -185,6 +225,20 @@ export default function ClosingPage() {
                         </div>
                     )}
 
+                    {/* 마감 전 체크: 대출 납입 누락 경고 */}
+                    {pendingLoanWarnings > 0 && (
+                        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-6 dark:border-indigo-900/30 dark:bg-indigo-900/10 mt-4">
+                            <div className="flex items-center space-x-2 mb-2">
+                                <span className="text-xl">📝</span>
+                                <h3 className="text-base font-bold text-indigo-800 dark:text-indigo-400">대출 납입 연결 누락 경고</h3>
+                            </div>
+                            <p className="text-sm text-indigo-700 dark:text-indigo-300">
+                                활성화된 대출이 <strong>{pendingLoanWarnings}건</strong> 있지만, 이번 달 대출 상환 거래 내역이 없습니다.
+                                마감 전 대출 납입 내역을 확인하고 등록해주세요.
+                            </p>
+                        </div>
+                    )}
+
                     {/* 마감 전 체크: 예산 초과 항목 */}
                     {overBudgetItems.length > 0 && (
                         <div className="rounded-xl border border-red-200 bg-red-50 p-6 dark:border-red-900/30 dark:bg-red-900/10">
@@ -271,6 +325,11 @@ export default function ClosingPage() {
                             {pendingCount > 0 && (
                                 <span className="block mt-2 text-amber-600 dark:text-amber-400">
                                     ⚠️ 미확인 자동이체 {pendingCount}건이 아직 남아있습니다.
+                                </span>
+                            )}
+                            {pendingLoanWarnings > 0 && (
+                                <span className="block mt-2 text-indigo-600 dark:text-indigo-400">
+                                    📝 대출 납입 연결 누락 가능성 ({pendingLoanWarnings}건 활성화됨)
                                 </span>
                             )}
                             이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?

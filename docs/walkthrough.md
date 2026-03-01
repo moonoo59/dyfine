@@ -23,13 +23,19 @@
 - `useLoans.ts`: 대출 목록/금리/원장 조회 훅
 - `LoansPage.tsx`: 대출 현황 조회, 상세 원장, 금리 이력, 추가상환 시뮬레이터
 
-### Sprint 8 — 투자 코어 (중간 푸시)
+### Sprint 8 — 투자 코어 (완료)
 - `0014_investment_core.sql`: 투자 RLS 및 `record_trade` RPC (매매 거래 통합 처리)
-- `useInvestments.ts`: `useHoldings`, `useSecurities`, `useRecordTrade` 훅
-- `InvestmentsPage.tsx`: 투자 요약, 보유 자산 목록, 매매 입력 모달, 자산 배분/추이 차트 (UI 구현 완료)
+- `useInvestments.ts`: `useHoldings`, `useSecurities`, `useRecordTrade`, `useCreateHoldingSnapshot`, `useUpdateSecurityPrices` 훅 및 `useTradeHistory` 훅
+- `InvestmentsPage.tsx`: 요약 카드, 보유 종목, 매매/가격 업데이트, 자산 차트 구현
+- `0015_investment_snapshot.sql`: `update_holding_snapshot`, `update_security_prices` RPC
+
+### Sprint 9 — Phase 2 고도화/QA (완료)
+- `DashboardPage.tsx`: 대출 및 투자 정보(대출 납입 예정, 투자 평가액/수익률)를 위한 위젯 연동. `useDashboardData.ts` 수정
+- `ClosingPage.tsx`: 마감 전 대출 납입 여부 확인 경고 메세지 추가, 보유 투자 자산 스냅샷 동시 생성 연동 완료
+- `0016_loan_cron.sql`: `generate_monthly_loan_entries` RPC를 통해 매크론 잡에서 대출 원장 갱신(이자 등) 지원 구축
 
 ---
 
 ## 검증 결과
 - `tsc --noEmit` & `vite build`: ✅ 통과
-- Git Push: ✅ `main` 브랜치 반영 완료 (`c100ab6`)
+- Git Push: ✅ `main` 브랜치 반영 대기 중

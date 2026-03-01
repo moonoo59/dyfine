@@ -3,16 +3,19 @@
 -- =============================================================
 
 -- 1. 투자 관련 RLS 정책 추가 (0003에서 RLS enable만 했고 정책 미작성)
+DROP POLICY IF EXISTS "Members can manage securities" ON securities;
 CREATE POLICY "Members can manage securities"
     ON securities FOR ALL TO authenticated
     USING (is_household_member(household_id))
     WITH CHECK (is_household_member(household_id));
 
+DROP POLICY IF EXISTS "Members can manage holdings" ON holdings;
 CREATE POLICY "Members can manage holdings"
     ON holdings FOR ALL TO authenticated
     USING (is_household_member(household_id))
     WITH CHECK (is_household_member(household_id));
 
+DROP POLICY IF EXISTS "Members can manage holding_snapshots" ON holding_snapshots;
 CREATE POLICY "Members can manage holding_snapshots"
     ON holding_snapshots FOR ALL TO authenticated
     USING (is_household_member(household_id))
