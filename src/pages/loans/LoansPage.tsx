@@ -4,6 +4,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useLoans, useLoanRates, useLoanLedger } from '@/hooks/queries/useLoans';
 import { useAccounts } from '@/hooks/queries/useAccounts';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-hot-toast';
 import CurrencyInput from '@/components/ui/CurrencyInput';
 
 /**
@@ -64,8 +65,9 @@ export default function LoansPage() {
             p_linked_account_id: linkedAccountId || null,
         });
 
-        if (error) { alert('생성 실패: ' + error.message); return; }
+        if (error) { toast.error('생성 실패: ' + error.message); return; }
         setIsModalOpen(false);
+        toast.success('대출이 정상적으로 등록되었습니다.');
         queryClient.invalidateQueries({ queryKey: ['loans', householdId] });
     };
 

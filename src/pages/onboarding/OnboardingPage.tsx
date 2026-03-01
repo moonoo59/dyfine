@@ -1,19 +1,18 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
+import { toast } from 'react-hot-toast';
 
 export default function OnboardingPage({ onComplete }: { onComplete: () => void }) {
     const { user } = useAuthStore();
     const [loading, setLoading] = useState(false);
     const [householdName, setHouseholdName] = useState('');
-    const [error, setError] = useState<string | null>(null);
 
     const handleCreateHousehold = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user) return;
 
         setLoading(true);
-        setError(null);
 
         try {
             // 1. RPC 함수로 가구 생성 + owner 등록을 한 번에 처리 (RLS 우회)
@@ -34,7 +33,7 @@ export default function OnboardingPage({ onComplete }: { onComplete: () => void 
             onComplete();
 
         } catch (err: any) {
-            setError(err.message || '가구 생성 중 에러가 발생했습니다.');
+            toast.error(err.message || '가구 생성 중 에러가 발생했습니다.');
         } finally {
             setLoading(false);
         }
@@ -67,12 +66,6 @@ export default function OnboardingPage({ onComplete }: { onComplete: () => void 
                             placeholder="예) 슬기로운 우리집"
                         />
                     </div>
-
-                    {error && (
-                        <div className="text-sm text-red-500">
-                            * {error}
-                        </div>
-                    )}
 
                     <div>
                         <button

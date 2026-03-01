@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useCategories } from '@/hooks/queries/useCategories';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-hot-toast';
 
 export default function CategoriesPage() {
     const { user, householdId } = useAuthStore();
@@ -47,8 +48,9 @@ export default function CategoriesPage() {
             if (householdId) {
                 queryClient.invalidateQueries({ queryKey: ['categories', householdId] });
             }
+            toast.success('카테고리가 성공적으로 저장되었습니다.');
         } else {
-            alert('카테고리 저장 실패: ' + error.message);
+            toast.error('카테고리 저장 실패: ' + error.message);
         }
     };
 
@@ -81,8 +83,8 @@ export default function CategoriesPage() {
                                 <div className="flex items-center justify-between mb-2">
                                     <span className="font-semibold text-gray-900 dark:text-white">{l1.name}</span>
                                     <span className={`text-xs px-2 py-0.5 rounded-full ${l1.category_type === 'income' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                                            : l1.category_type === 'both' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
-                                                : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                        : l1.category_type === 'both' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                                            : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                                         }`}>
                                         {l1.category_type === 'income' ? '수입' : l1.category_type === 'both' ? '공통' : '지출'}
                                     </span>
@@ -141,15 +143,15 @@ export default function CategoriesPage() {
                                 <div className="mt-1 flex space-x-3">
                                     <button type="button" onClick={() => setCategoryType('expense')}
                                         className={`flex-1 py-2 text-sm rounded-md border ${categoryType === 'expense' ? 'border-red-500 bg-red-50 text-red-700 font-bold dark:bg-red-900/20 dark:text-red-400'
-                                                : 'border-gray-300 text-gray-500 dark:border-zinc-700 dark:text-gray-400'
+                                            : 'border-gray-300 text-gray-500 dark:border-zinc-700 dark:text-gray-400'
                                             }`}>지출</button>
                                     <button type="button" onClick={() => setCategoryType('income')}
                                         className={`flex-1 py-2 text-sm rounded-md border ${categoryType === 'income' ? 'border-blue-500 bg-blue-50 text-blue-700 font-bold dark:bg-blue-900/20 dark:text-blue-400'
-                                                : 'border-gray-300 text-gray-500 dark:border-zinc-700 dark:text-gray-400'
+                                            : 'border-gray-300 text-gray-500 dark:border-zinc-700 dark:text-gray-400'
                                             }`}>수입</button>
                                     <button type="button" onClick={() => setCategoryType('both')}
                                         className={`flex-1 py-2 text-sm rounded-md border ${categoryType === 'both' ? 'border-purple-500 bg-purple-50 text-purple-700 font-bold dark:bg-purple-900/20 dark:text-purple-400'
-                                                : 'border-gray-300 text-gray-500 dark:border-zinc-700 dark:text-gray-400'
+                                            : 'border-gray-300 text-gray-500 dark:border-zinc-700 dark:text-gray-400'
                                             }`}>공통</button>
                                 </div>
                             </div>

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
+import { toast } from 'react-hot-toast';
 
 export interface Security {
     id: number;
@@ -107,7 +108,12 @@ export function useRecordTrade() {
             queryClient.invalidateQueries({ queryKey: ['holdings', householdId] });
             queryClient.invalidateQueries({ queryKey: ['transactions', householdId] });
             queryClient.invalidateQueries({ queryKey: ['accounts', householdId] });
+            toast.success('매매 기록이 저장되었습니다.');
         },
+        onError: (error: any) => {
+            console.error('Failed to record trade:', error);
+            toast.error(error.message || '매매 기록 저장에 실패했습니다.');
+        }
     });
 }
 
@@ -125,6 +131,13 @@ export function useCreateHoldingSnapshot() {
                 p_snapshot_date: date || new Date().toISOString().split('T')[0],
             });
             if (error) throw error;
+        },
+        onSuccess: () => {
+            toast.success('투자 스냅샷이 생성되었습니다.');
+        },
+        onError: (error: any) => {
+            console.error('Failed to create snapshot:', error);
+            toast.error(error.message || '스냅샷 생성에 실패했습니다.');
         }
     });
 }
@@ -147,6 +160,11 @@ export function useUpdateSecurityPrices() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['holdings', householdId] });
+            toast.success('현재가가 일괄 갱신되었습니다.');
+        },
+        onError: (error: any) => {
+            console.error('Failed to update prices:', error);
+            toast.error(error.message || '현재가 갱신에 실패했습니다.');
         }
     });
 }

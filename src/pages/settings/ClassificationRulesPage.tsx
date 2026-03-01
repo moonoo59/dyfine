@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useCategories } from '@/hooks/queries/useCategories';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-hot-toast';
 
 /** 분류 룰 인터페이스 */
 interface ClassificationRule {
@@ -83,13 +84,15 @@ export default function ClassificationRulesPage() {
                 .from('classification_rules')
                 .update({ pattern, category_id: categoryId || null, priority })
                 .eq('id', editingId);
-            if (error) { alert('수정 실패: ' + error.message); return; }
+            if (error) { toast.error('수정 실패: ' + error.message); return; }
+            toast.success('룰이 수정되었습니다.');
         } else {
             // 추가
             const { error } = await supabase
                 .from('classification_rules')
                 .insert([{ household_id: householdId, pattern, category_id: categoryId || null, priority, is_active: true, tag_ids: [] }]);
-            if (error) { alert('추가 실패: ' + error.message); return; }
+            if (error) { toast.error('추가 실패: ' + error.message); return; }
+            toast.success('새 룰이 추가되었습니다.');
         }
 
         setIsModalOpen(false);
@@ -100,7 +103,8 @@ export default function ClassificationRulesPage() {
     const handleDelete = async (id: number) => {
         if (!confirm('이 룰을 삭제하시겠습니까?')) return;
         const { error } = await supabase.from('classification_rules').delete().eq('id', id);
-        if (error) { alert('삭제 실패: ' + error.message); return; }
+        if (error) { toast.error('삭제 실패: ' + error.message); return; }
+        toast.success('룰이 삭제되었습니다.');
         queryClient.invalidateQueries({ queryKey: ['classification_rules', householdId] });
     };
 
@@ -110,7 +114,7 @@ export default function ClassificationRulesPage() {
             .from('classification_rules')
             .update({ is_active: !currentState })
             .eq('id', id);
-        if (error) return;
+        if (error) { toast.error('상태 변경 실패: ' + error.message); return; }
         queryClient.invalidateQueries({ queryKey: ['classification_rules', householdId] });
     };
 

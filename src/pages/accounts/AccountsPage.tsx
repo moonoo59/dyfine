@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useAccounts } from '@/hooks/queries/useAccounts';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-hot-toast';
 import CurrencyInput from '@/components/ui/CurrencyInput';
 
 export interface Account {
@@ -72,8 +73,9 @@ export default function AccountsPage() {
             if (householdId) {
                 queryClient.invalidateQueries({ queryKey: ['accounts', householdId] });
             }
+            toast.success('계좌가 생성되었습니다.');
         } else {
-            alert('계좌 생성 실패: ' + error.message);
+            toast.error('계좌 생성 실패: ' + error.message);
         }
     };
 

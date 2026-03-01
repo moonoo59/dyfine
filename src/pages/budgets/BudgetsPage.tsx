@@ -7,6 +7,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { Category } from '../transactions/TransactionsPage';
 import CurrencyInput from '@/components/ui/CurrencyInput';
 import MonthPicker from '@/components/ui/MonthPicker';
+import { toast } from 'react-hot-toast';
 
 /**
  * 예산 관리 페이지 컴포넌트
@@ -62,7 +63,7 @@ export default function BudgetsPage() {
                 .update({ monthly_amount: budgetAmount })
                 .eq('id', editingTemplateId);
             actionError = error;
-            if (error) alert('수정 실패: ' + error.message);
+            if (error) { toast.error('수정 실패: ' + error.message); return; }
         } else {
             // 추가 모드: 기본 템플릿 확인 및 생성
             let templateId: number | null = null;
@@ -82,7 +83,7 @@ export default function BudgetsPage() {
                     .select('id')
                     .single();
                 if (tplError) {
-                    alert('예산 템플릿 생성 실패: ' + tplError.message);
+                    toast.error('예산 템플릿 생성 실패: ' + tplError.message);
                     return;
                 }
                 templateId = newTemplate.id;
@@ -96,7 +97,7 @@ export default function BudgetsPage() {
                     monthly_amount: budgetAmount
                 }]);
             actionError = insertError;
-            if (insertError) alert('생성 실패: ' + insertError.message);
+            if (insertError) { toast.error('생성 실패: ' + insertError.message); return; }
         }
 
         if (!actionError) {
@@ -107,6 +108,7 @@ export default function BudgetsPage() {
             setBudgetAmount(0);
 
             // 캐시 무효화로 즉시 리프레시
+            toast.success('예산 설정 성공!');
             queryClient.invalidateQueries({ queryKey: ['budgets', householdId] });
         }
     };

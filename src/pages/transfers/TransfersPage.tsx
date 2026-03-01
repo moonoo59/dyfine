@@ -5,6 +5,7 @@ import { useAccounts } from '@/hooks/queries/useAccounts';
 import { useTransferRules } from '@/hooks/queries/useTransferRules';
 import { useTransferInstances } from '@/hooks/queries/useTransferInstances';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-hot-toast';
 
 /**
  * 자동이체 페이지 컴포넌트
@@ -78,7 +79,7 @@ export default function TransfersPage() {
             queryClient.invalidateQueries({ queryKey: ['transferRules', householdId] });
             queryClient.invalidateQueries({ queryKey: ['transferInstances', householdId] });
         } else {
-            alert('규칙 생성 실패: ' + error?.message);
+            toast.error('규칙 생성 실패: ' + error?.message);
         }
     };
 
@@ -96,9 +97,10 @@ export default function TransfersPage() {
         });
 
         if (rpcError) {
-            alert('확인 처리 실패: ' + rpcError.message);
+            toast.error('확인 처리 실패: ' + rpcError.message);
         } else {
             // 관련 캐시 전체 무효화
+            toast.success('자동이체가 확인 되었습니다!');
             queryClient.invalidateQueries({ queryKey: ['transferInstances', householdId] });
             queryClient.invalidateQueries({ queryKey: ['transferRules', householdId] });
             queryClient.invalidateQueries({ queryKey: ['transactions', householdId] });

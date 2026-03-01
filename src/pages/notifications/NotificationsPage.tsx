@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useNotifications } from '@/hooks/queries/useNotifications';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-hot-toast';
 
 /**
  * 알림(Notifications) 페이지 컴포넌트 (Sprint 5)
@@ -19,14 +20,23 @@ export default function NotificationsPage() {
 
     /** 개별 알림 읽음 처리 */
     const markAsRead = async (id: number) => {
-        await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+        const { error } = await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+        if (error) {
+            toast.error('알림 처리에 실패했습니다: ' + error.message);
+            return;
+        }
         queryClient.invalidateQueries({ queryKey: ['notifications', householdId] });
     };
 
     /** 전체 읽음 처리 */
     const markAllAsRead = async () => {
         if (!householdId) return;
-        await supabase.from('notifications').update({ is_read: true }).eq('household_id', householdId).eq('is_read', false);
+        const { error } = await supabase.from('notifications').update({ is_read: true }).eq('household_id', householdId).eq('is_read', false);
+        if (error) {
+            toast.error('전체 읽음 처리에 실패했습니다: ' + error.message);
+            return;
+        }
+        toast.success('모든 알림을 읽음 처리했습니다.');
         queryClient.invalidateQueries({ queryKey: ['notifications', householdId] });
     };
 
@@ -59,8 +69,8 @@ export default function NotificationsPage() {
                                 key={noti.id}
                                 onClick={() => !noti.is_read && markAsRead(noti.id)}
                                 className={`p-4 cursor-pointer transition-colors ${noti.is_read
-                                        ? 'bg-white dark:bg-zinc-950'
-                                        : 'bg-indigo-50/50 dark:bg-indigo-900/10'
+                                    ? 'bg-white dark:bg-zinc-950'
+                                    : 'bg-indigo-50/50 dark:bg-indigo-900/10'
                                     } hover:bg-gray-50 dark:hover:bg-zinc-900/50`}
                             >
                                 <div className="flex items-start space-x-3">

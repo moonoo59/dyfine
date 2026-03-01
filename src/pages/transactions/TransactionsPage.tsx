@@ -8,6 +8,7 @@ import { useFavorites, useFavoriteActions } from '@/hooks/queries/useFavorites';
 import { useQueryClient } from '@tanstack/react-query';
 import FilterBar, { type FilterValues, getDefaultFilterValues } from '@/components/ui/FilterBar';
 import CurrencyInput from '@/components/ui/CurrencyInput';
+import { toast } from 'react-hot-toast';
 
 /** 카테고리 인터페이스 (다른 파일에서도 import) */
 export interface Category {
@@ -126,7 +127,7 @@ export default function TransactionsPage() {
     const handleQuickAdd = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user || !householdId || newAmount <= 0) {
-            alert('금액은 0보다 커야 합니다.');
+            toast.error('금액은 0보다 커야 합니다.');
             return;
         }
 
@@ -141,7 +142,7 @@ export default function TransactionsPage() {
         }
 
         if (linesToInsert.length === 0) {
-            alert('계좌를 확인해주세요.');
+            toast.error('계좌를 확인해주세요.');
             return;
         }
 
@@ -157,7 +158,7 @@ export default function TransactionsPage() {
         });
 
         if (rpcError) {
-            alert('전표 생성 실패: ' + rpcError.message);
+            toast.error('전표 생성 실패: ' + rpcError.message);
             return;
         }
 
@@ -165,6 +166,7 @@ export default function TransactionsPage() {
         resetForm();
         queryClient.invalidateQueries({ queryKey: ['transactions', householdId] });
         queryClient.invalidateQueries({ queryKey: ['accounts', householdId] });
+        toast.success('전표가 생성되었습니다.');
     };
 
     /** 폼 초기화 */
@@ -202,9 +204,9 @@ export default function TransactionsPage() {
                 amount: newAmount || null,
                 memo: newMemo || null,
             });
-            alert('즐겨찾기에 저장되었습니다.');
+            toast.success('즐겨찾기에 저장되었습니다.');
         } catch (err: any) {
-            alert('저장 실패: ' + err.message);
+            toast.error('저장 실패: ' + err.message);
         }
     };
 
@@ -239,8 +241,8 @@ export default function TransactionsPage() {
                         key={tab.key}
                         onClick={() => setActiveTab(tab.key)}
                         className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === tab.key
-                                ? 'bg-white text-gray-900 shadow-sm dark:bg-zinc-800 dark:text-white'
-                                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                            ? 'bg-white text-gray-900 shadow-sm dark:bg-zinc-800 dark:text-white'
+                            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
                             }`}
                     >
                         {tab.label}
@@ -277,8 +279,8 @@ export default function TransactionsPage() {
                                 <li key={fav.id} className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-zinc-900/50">
                                     <div className="flex items-center space-x-3">
                                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-sm ${fav.entry_type === 'income' ? 'bg-blue-100 text-blue-700' :
-                                                fav.entry_type === 'expense' ? 'bg-red-100 text-red-700' :
-                                                    'bg-gray-100 text-gray-700'
+                                            fav.entry_type === 'expense' ? 'bg-red-100 text-red-700' :
+                                                'bg-gray-100 text-gray-700'
                                             }`}>
                                             {fav.entry_type === 'income' ? '수입' : fav.entry_type === 'expense' ? '지출' : '이체'}
                                         </span>
@@ -325,9 +327,9 @@ export default function TransactionsPage() {
                                         <div className="flex flex-col">
                                             <div className="flex items-center space-x-2">
                                                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-sm ${entry.entry_type === 'income' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
-                                                        entry.entry_type === 'expense' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
-                                                            entry.entry_type === 'adjustment' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
-                                                                'bg-gray-100 text-gray-700 dark:bg-zinc-800 dark:text-gray-400'
+                                                    entry.entry_type === 'expense' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                                                        entry.entry_type === 'adjustment' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
+                                                            'bg-gray-100 text-gray-700 dark:bg-zinc-800 dark:text-gray-400'
                                                     }`}>
                                                     {entry.entry_type === 'income' ? '수입' :
                                                         entry.entry_type === 'expense' ? '지출' :

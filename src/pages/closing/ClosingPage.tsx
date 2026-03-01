@@ -6,6 +6,7 @@ import { useTransferInstances } from '@/hooks/queries/useTransferInstances';
 import { useBudgets } from '@/hooks/queries/useBudgets';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import MonthPicker from '@/components/ui/MonthPicker';
+import { toast } from 'react-hot-toast';
 
 /**
  * 월 마감(Closing) 페이지 컴포넌트
@@ -140,9 +141,9 @@ export default function ClosingPage() {
             queryClient.invalidateQueries({ queryKey: ['dashboard', householdId] });
             queryClient.invalidateQueries({ queryKey: ['transactions', householdId] });
 
-            alert(`${yearMonth} 마감이 완료되었습니다!\n전표 ${(data as any)?.locked_count || 0}건이 잠금 처리되었습니다.`);
+            toast.success(`${yearMonth} 마감이 완료되었습니다!\n전표 ${(data as any)?.locked_count || 0}건이 잠금 처리되었습니다.`);
         } catch (err: any) {
-            alert('마감 실패: ' + (err.message || '알 수 없는 오류'));
+            toast.error('마감 실패: ' + (err.message || '알 수 없는 오류'));
         } finally {
             setClosing(false);
         }

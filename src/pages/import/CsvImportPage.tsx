@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useAccounts } from '@/hooks/queries/useAccounts';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-hot-toast';
 
 /**
  * CSV Import 페이지 컴포넌트 (Sprint 4)
@@ -57,7 +58,7 @@ export default function CsvImportPage() {
             complete: (results) => {
                 const data = results.data as string[][];
                 if (data.length < 2) {
-                    alert('CSV 파일에 데이터가 없습니다.');
+                    toast.error('CSV 파일에 데이터가 없습니다.');
                     return;
                 }
                 setRawHeaders(data[0]);
@@ -70,7 +71,7 @@ export default function CsvImportPage() {
                     complete: (results) => {
                         const data = results.data as string[][];
                         if (data.length < 2) {
-                            alert('CSV 파일에 데이터가 없습니다.');
+                            toast.error('CSV 파일에 데이터가 없습니다.');
                             return;
                         }
                         setRawHeaders(data[0]);
@@ -117,13 +118,13 @@ export default function CsvImportPage() {
     /** Import 실행 */
     const handleImport = async () => {
         if (!user || !householdId || !targetAccountId) {
-            alert('대상 계좌를 선택해주세요.');
+            toast.error('대상 계좌를 선택해주세요.');
             return;
         }
 
         const selectedRows = parsedRows.filter(r => r.selected && !r.isDuplicate);
         if (selectedRows.length === 0) {
-            alert('가져올 항목이 없습니다.');
+            toast.error('가져올 항목이 없습니다.');
             return;
         }
 
@@ -159,7 +160,11 @@ export default function CsvImportPage() {
         setImporting(false);
         queryClient.invalidateQueries({ queryKey: ['transactions', householdId] });
         queryClient.invalidateQueries({ queryKey: ['accounts', householdId] });
-        alert(`Import 완료: 성공 ${successCount}건, 실패 ${errorCount}건`);
+        if (errorCount > 0) {
+            toast.error(`Import 완료: 성공 ${successCount}건, 실패 ${errorCount}건`);
+        } else {
+            toast.success(`Import 완료: 총 ${successCount}건 성공`);
+        }
         setStep('upload');
         setParsedRows([]);
     };

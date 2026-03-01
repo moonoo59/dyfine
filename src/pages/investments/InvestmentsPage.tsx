@@ -3,6 +3,7 @@ import { useHoldings, useRecordTrade, useUpdateSecurityPrices } from '@/hooks/qu
 import { useAccounts } from '@/hooks/queries/useAccounts';
 import { useCategories } from '@/hooks/queries/useCategories';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
+import { toast } from 'react-hot-toast';
 import CurrencyInput from '@/components/ui/CurrencyInput';
 
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981', '#06b6d4'];
@@ -70,7 +71,7 @@ export default function InvestmentsPage() {
     const handleTradeSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedAccountId || !ticker || !securityName || quantity <= 0 || price <= 0) {
-            alert('필수 정보를 입력해주세요.');
+            toast.error('필수 정보를 입력해주세요.');
             return;
         }
 
@@ -94,7 +95,7 @@ export default function InvestmentsPage() {
             setPrice(0);
             setFee(0);
         } catch (error: any) {
-            alert('거래 기록 실패: ' + error.message);
+            toast.error('거래 기록 실패: ' + error.message);
         }
     };
 
@@ -109,7 +110,7 @@ export default function InvestmentsPage() {
             await updatePricesMutation.mutateAsync(prices);
             setIsPriceModalOpen(false);
         } catch (error: any) {
-            alert('가격 갱신 실패: ' + error.message);
+            toast.error('가격 갱신 실패: ' + error.message);
         }
     };
 

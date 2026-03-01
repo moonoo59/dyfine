@@ -1,17 +1,16 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
+import { toast } from 'react-hot-toast';
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isLogin, setIsLogin] = useState(true);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
 
     const handleAuth = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-        setError(null);
 
         try {
             if (isLogin) {
@@ -21,6 +20,7 @@ export default function LoginPage() {
                     password,
                 });
                 if (error) throw error;
+                toast.success('로그인 되었습니다.');
             } else {
                 // 회원가입 처리
                 const { error } = await supabase.auth.signUp({
@@ -29,10 +29,10 @@ export default function LoginPage() {
                 });
                 if (error) throw error;
                 // 안내 문구
-                alert('회원가입 성공! 메일함을 확인하거나 바로 로그인해보세요.');
+                toast.success('회원가입 성공! 메일함을 확인하거나 바로 로그인해보세요.');
             }
         } catch (err: any) {
-            setError(err.message || '인증 중 올바르지 않은 에러가 발생했습니다.');
+            toast.error(err.message || '인증 중 올바르지 않은 에러가 발생했습니다.');
         } finally {
             setLoading(false);
         }
@@ -81,12 +81,6 @@ export default function LoginPage() {
                             />
                         </div>
                     </div>
-
-                    {error && (
-                        <div className="text-sm text-red-500">
-                            * {error}
-                        </div>
-                    )}
 
                     <div>
                         <button

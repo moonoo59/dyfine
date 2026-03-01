@@ -19,6 +19,9 @@ import NotificationsPage from '@/pages/notifications/NotificationsPage';
 import LoansPage from '@/pages/loans/LoansPage';
 import InvestmentsPage from '@/pages/investments/InvestmentsPage';
 
+import { Toaster } from 'react-hot-toast';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
+
 const Loading = () => <div className="flex h-screen items-center justify-center text-lg font-medium text-zinc-500">Loading...</div>;
 
 function App() {
@@ -62,37 +65,40 @@ function App() {
 
     return (
         <div className="min-h-screen bg-white font-sans antialiased dark:bg-zinc-950">
-            <Routes>
-                {/* 비로그인 유저는 로그인 페이지로 */}
-                <Route
-                    path="/login"
-                    element={!user ? <LoginPage /> : <Navigate to="/" replace />}
-                />
+            <Toaster position="top-center" reverseOrder={false} />
+            <ErrorBoundary>
+                <Routes>
+                    {/* 비로그인 유저는 로그인 페이지로 */}
+                    <Route
+                        path="/login"
+                        element={!user ? <LoginPage /> : <Navigate to="/" replace />}
+                    />
 
-                {/* 로그인 유저는 Onboarding 여부에 따라 라우팅 */}
-                {!user ? (
-                    <Route path="*" element={<Navigate to="/login" replace />} />
-                ) : !hasHousehold ? (
-                    <Route path="*" element={<OnboardingPage onComplete={() => setHasHousehold(true)} />} />
-                ) : (
-                    <Route path="/" element={<AppLayout />}>
-                        <Route index element={<DashboardPage />} />
-                        <Route path="accounts" element={<AccountsPage />} />
-                        <Route path="categories" element={<CategoriesPage />} />
-                        <Route path="transactions" element={<TransactionsPage />} />
-                        <Route path="transfers" element={<TransfersPage />} />
-                        <Route path="budgets" element={<BudgetsPage />} />
-                        <Route path="closing" element={<ClosingPage />} />
-                        <Route path="import" element={<CsvImportPage />} />
-                        <Route path="rules" element={<ClassificationRulesPage />} />
-                        <Route path="reports" element={<ReportsPage />} />
-                        <Route path="notifications" element={<NotificationsPage />} />
-                        <Route path="loans" element={<LoansPage />} />
-                        <Route path="investments" element={<InvestmentsPage />} />
-                        <Route path="*" element={<Navigate to="/" replace />} />
-                    </Route>
-                )}
-            </Routes>
+                    {/* 로그인 유저는 Onboarding 여부에 따라 라우팅 */}
+                    {!user ? (
+                        <Route path="*" element={<Navigate to="/login" replace />} />
+                    ) : !hasHousehold ? (
+                        <Route path="*" element={<OnboardingPage onComplete={() => setHasHousehold(true)} />} />
+                    ) : (
+                        <Route path="/" element={<AppLayout />}>
+                            <Route index element={<DashboardPage />} />
+                            <Route path="accounts" element={<AccountsPage />} />
+                            <Route path="categories" element={<CategoriesPage />} />
+                            <Route path="transactions" element={<TransactionsPage />} />
+                            <Route path="transfers" element={<TransfersPage />} />
+                            <Route path="budgets" element={<BudgetsPage />} />
+                            <Route path="closing" element={<ClosingPage />} />
+                            <Route path="import" element={<CsvImportPage />} />
+                            <Route path="rules" element={<ClassificationRulesPage />} />
+                            <Route path="reports" element={<ReportsPage />} />
+                            <Route path="notifications" element={<NotificationsPage />} />
+                            <Route path="loans" element={<LoansPage />} />
+                            <Route path="investments" element={<InvestmentsPage />} />
+                            <Route path="*" element={<Navigate to="/" replace />} />
+                        </Route>
+                    )}
+                </Routes>
+            </ErrorBoundary>
         </div>
     );
 }
