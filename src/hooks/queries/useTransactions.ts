@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import type { TransactionEntry } from '@/pages/transactions/TransactionsPage';
@@ -95,4 +95,33 @@ export function useTransactions(filters: TransactionFilters = {}, limit = 50) {
         enabled: !!householdId,
         staleTime: 1000 * 60 * 1, // 1분 캐시
     });
+}
+
+/**
+ * 전표 삭제 훅
+ */
+export function useDeleteTransaction() {
+    const queryClient = useQueryClient();
+    const { householdId } = useAuthStore();
+
+    const deleteTransaction = async (entryId: number) => {
+        if (!householdId) return { error: new Error('No household ID') };
+
+        // cascade 옵션에 의해 transaction_lines, entry_tags 등도 자동 삭제됨
+        const { error } = await supabase
+            .from('transaction_entries')
+            .delete()
+            .eq('id', entryId)
+            .eq('household_id', householdId) // 안전 장치
+            .eq('is_locked', false);         // 잠긴 전표 삭제 방어
+
+        if (!error) {
+            queryClient.invalidateQueries({ queryKey: ['transactions', householdId] });
+            queryClient.invalidateQueries({ queryKey: ['accounts', householdId] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard', householdId] });
+        }
+        return { error };
+    };
+
+    return { deleteTransaction };
 }

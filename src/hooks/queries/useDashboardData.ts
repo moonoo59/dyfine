@@ -61,81 +61,56 @@ export function useDashboardData(startDate: string, endDate: string) {
         queryFn: async (): Promise<DashboardData> => {
             if (!householdId) throw new Error('No household ID');
 
-            // === 1. 계좌별 잔액 (opening_balance + 전체 거래 합산) ===
-            const { data: accData } = await supabase
-                .from('accounts')
-                .select('id, name, account_type, opening_balance')
-                .eq('household_id', householdId)
-                .eq('is_active', true);
+            // === 1. 계좌별 잔액 (v_account_balance_actual View 활용) ===
+            const { data: balanceData } = await supabase
+                .from('v_account_balance_actual')
+                .select('account_id, account_name, account_type, current_balance')
+                .eq('household_id', householdId);
 
-            // 각 계좌의 거래 합산 조회
-            const { data: lineData } = await supabase
-                .from('transaction_lines')
-                .select('account_id, amount, entry:transaction_entries!inner(household_id)')
-                .eq('entry.household_id', householdId);
-
-            // 계좌별 거래 합산 맵
-            const txnSumByAccount: Record<number, number> = {};
-            lineData?.forEach(line => {
-                txnSumByAccount[line.account_id] = (txnSumByAccount[line.account_id] || 0) + Number(line.amount);
-            });
-
-            // 계좌별 실제 잔액
-            const accountBalances = (accData || []).map(acc => ({
-                id: acc.id,
-                name: acc.name,
+            const accountBalances = (balanceData || []).map((acc: any) => ({
+                id: acc.account_id,
+                name: acc.account_name,
                 type: acc.account_type,
-                balance: acc.opening_balance + (txnSumByAccount[acc.id] || 0),
+                balance: Number(acc.current_balance || 0),
             }));
 
             const totalAssets = accountBalances.reduce((s, a) => s + a.balance, 0);
             const cashBalance = accountBalances
-                .filter(a => a.type === 'bank' || a.type === 'virtual')
+                .filter(a => ['bank', 'virtual', 'checking'].includes(a.type))
                 .reduce((s, a) => s + a.balance, 0);
 
-            // === 2. 기간 내 수입 합산 ===
-            const { data: incomeEntries } = await supabase
-                .from('transaction_entries')
-                .select('category_id, category:categories(name), lines:transaction_lines(amount)')
+            // === 2 & 3. 기간 내 수입/지출 합산 + 카테고리별 (v_monthly_category_actual View 활용) ===
+            // 현재 달의 실적만 가져오면 되지만, View는 YYYY-MM 기준입니다.
+            // Dashboard 기간 파라미터가 월 단위일 가능성이 높으므로 View의 year_month 로 조회합니다.
+            const startYearMonth = startDate.substring(0, 7); // 예: '2026-03'
+
+            const { data: categoryData } = await supabase
+                .from('v_monthly_category_actual')
+                .select('entry_type, category_name, total_inflow, total_outflow')
                 .eq('household_id', householdId)
-                .eq('entry_type', 'income')
-                .gte('occurred_at', startDate)
-                .lte('occurred_at', endDate + 'T23:59:59');
+                .eq('year_month', startYearMonth);
 
             let periodIncome = 0;
+            let periodExpense = 0;
             const incCatMap: Record<string, number> = {};
-            incomeEntries?.forEach(entry => {
-                const amt = entry.lines.reduce(
-                    (s: number, l: any) => s + (l.amount > 0 ? Number(l.amount) : 0), 0
-                );
-                periodIncome += amt;
-                const catName = (entry.category as any)?.name || '기타 수입';
-                incCatMap[catName] = (incCatMap[catName] || 0) + amt;
+            const expCatMap: Record<string, number> = {};
+
+            categoryData?.forEach((row: any) => {
+                const catName = row.category_name || (row.entry_type === 'income' ? '기타 수입' : '미분류');
+                if (row.entry_type === 'income') {
+                    const amt = Number(row.total_inflow);
+                    periodIncome += amt;
+                    incCatMap[catName] = (incCatMap[catName] || 0) + amt;
+                } else if (row.entry_type === 'expense') {
+                    const amt = Number(row.total_outflow);
+                    periodExpense += amt;
+                    expCatMap[catName] = (expCatMap[catName] || 0) + amt;
+                }
             });
 
             const incomeByCategory = Object.keys(incCatMap)
                 .map(k => ({ name: k, value: incCatMap[k] }))
                 .sort((a, b) => b.value - a.value);
-
-            // === 3. 기간 내 지출 합산 + 카테고리별 ===
-            const { data: expEntries } = await supabase
-                .from('transaction_entries')
-                .select('category_id, category:categories(name), lines:transaction_lines(amount)')
-                .eq('household_id', householdId)
-                .eq('entry_type', 'expense')
-                .gte('occurred_at', startDate)
-                .lte('occurred_at', endDate + 'T23:59:59');
-
-            let periodExpense = 0;
-            const expCatMap: Record<string, number> = {};
-            expEntries?.forEach(entry => {
-                const amt = entry.lines.reduce(
-                    (s: number, l: any) => s + Math.abs(l.amount < 0 ? Number(l.amount) : 0), 0
-                );
-                periodExpense += amt;
-                const catName = (entry.category as any)?.name || '미분류';
-                expCatMap[catName] = (expCatMap[catName] || 0) + amt;
-            });
 
             const expenseByCategory = Object.keys(expCatMap)
                 .map(k => ({ name: k, value: expCatMap[k] }))
@@ -152,7 +127,7 @@ export function useDashboardData(startDate: string, endDate: string) {
 
             // 계좌 ID → 이름 매핑
             const accNameMap: Record<number, string> = {};
-            (accData || []).forEach(a => { accNameMap[a.id] = a.name; });
+            accountBalances.forEach(a => { accNameMap[a.id] = a.name; });
 
             const flowMap: Record<string, number> = {};
             transferEntries?.forEach(entry => {
@@ -207,7 +182,7 @@ export function useDashboardData(startDate: string, endDate: string) {
                 .eq('entry.household_id', householdId)
                 .lt('entry.occurred_at', startDate);
 
-            let priorBalance = (accData || []).reduce((s, a) => s + a.opening_balance, 0);
+            let priorBalance = accountBalances.reduce((s: number, a: { balance: number }) => s + a.balance, 0);
             priorLines?.forEach(l => { priorBalance += Number(l.amount); });
 
             // 일별 변동 집계

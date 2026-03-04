@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useAccounts } from '@/hooks/queries/useAccounts';
 import { useCategories } from '@/hooks/queries/useCategories';
-import { useTransactions, type TransactionFilters } from '@/hooks/queries/useTransactions';
+import { useTransactions, useDeleteTransaction, type TransactionFilters } from '@/hooks/queries/useTransactions';
 import { useFavorites, useFavoriteActions } from '@/hooks/queries/useFavorites';
 import { useQueryClient } from '@tanstack/react-query';
 import FilterBar, { type FilterValues, getDefaultFilterValues } from '@/components/ui/FilterBar';
@@ -100,6 +100,8 @@ export default function TransactionsPage() {
         if (activeTab === 'inbox') return raw.filter(e => !e.category_id);
         return raw;
     }, [entriesData, activeTab]);
+
+    const { deleteTransaction } = useDeleteTransaction();
 
     // 즐겨찾기 데이터
     const { data: favorites } = useFavorites();
@@ -353,6 +355,21 @@ export default function TransactionsPage() {
                                                     </span>
                                                 </div>
                                             ))}
+                                            {!entry.is_locked && (
+                                                <button
+                                                    onClick={() => {
+                                                        if (confirm('이 거래를 삭제하시겠습니까?')) {
+                                                            deleteTransaction(entry.id).then(({ error }) => {
+                                                                if (error) toast.error('삭제 실패: ' + error.message);
+                                                                else toast.success('삭제되었습니다.');
+                                                            });
+                                                        }
+                                                    }}
+                                                    className="text-xs text-red-500 hover:text-red-700 mt-2 text-right"
+                                                >
+                                                    삭제
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 </li>
