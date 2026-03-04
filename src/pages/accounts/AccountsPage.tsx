@@ -38,6 +38,8 @@ export default function AccountsPage() {
 
     // 모달 상태
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+
     const [newAccountName, setNewAccountName] = useState('');
     const [newBankName, setNewBankName] = useState('');
     const [newAccountNumber, setNewAccountNumber] = useState('');
@@ -45,21 +47,62 @@ export default function AccountsPage() {
     const [newAccountType, setNewAccountType] = useState<Account['account_type']>('checking');
     const [newOpeningBalance, setNewOpeningBalance] = useState<number>(0);
 
+    const openModalForNew = () => {
+        setEditingAccount(null);
+        setNewAccountName('');
+        setNewBankName('');
+        setNewAccountNumber('');
+        setNewHolderName('');
+        setNewAccountType('checking');
+        setNewOpeningBalance(0);
+        setIsModalOpen(true);
+    };
+
+    const openModalForEdit = (account: Account) => {
+        setEditingAccount(account);
+        setNewAccountName(account.name);
+        setNewBankName(account.bank_name || '');
+        setNewAccountNumber(account.account_number || '');
+        setNewHolderName(account.holder_name || '');
+        setNewAccountType(account.account_type);
+        setNewOpeningBalance(account.opening_balance);
+        setIsModalOpen(true);
+    };
+
     const handleCreateAccount = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user || !householdId || !newAccountName.trim()) return;
 
-        const { error } = await supabase
-            .from('accounts')
-            .insert([{
-                household_id: householdId,
-                name: newAccountName,
-                bank_name: newBankName || null,
-                account_number: newAccountNumber || null,
-                holder_name: newHolderName || null,
-                account_type: newAccountType,
-                opening_balance: newOpeningBalance,
-            }]);
+        let error;
+
+        if (editingAccount) {
+            const { error: updateError } = await supabase
+                .from('accounts')
+                .update({
+                    name: newAccountName,
+                    bank_name: newBankName || null,
+                    account_number: newAccountNumber || null,
+                    holder_name: newHolderName || null,
+                    account_type: newAccountType,
+                    // opening_balance는 원칙적으로 최초 생성 시에만 세팅하거나 조정 전표를 쓰는 것이 좋지만 편의상 수정 허용
+                    opening_balance: newOpeningBalance,
+                })
+                .eq('id', editingAccount.id);
+            error = updateError;
+        } else {
+            const { error: insertError } = await supabase
+                .from('accounts')
+                .insert([{
+                    household_id: householdId,
+                    name: newAccountName,
+                    bank_name: newBankName || null,
+                    account_number: newAccountNumber || null,
+                    holder_name: newHolderName || null,
+                    account_type: newAccountType,
+                    opening_balance: newOpeningBalance,
+                }]);
+            error = insertError;
+        }
 
         if (!error) {
             setIsModalOpen(false);
@@ -73,9 +116,22 @@ export default function AccountsPage() {
             if (householdId) {
                 queryClient.invalidateQueries({ queryKey: ['accounts', householdId] });
             }
-            toast.success('계좌가 생성되었습니다.');
+            toast.success(editingAccount ? '계좌가 수정되었습니다.' : '계좌가 생성되었습니다.');
         } else {
-            toast.error('계좌 생성 실패: ' + error.message);
+            toast.error((editingAccount ? '수정 실패: ' : '생성 실패: ') + error.message);
+        }
+    };
+
+    const handleDeleteAccount = async (id: number) => {
+        if (!confirm('이 계좌를 삭제하면 관련된 모든 내역이 삭제되거나 문제가 발생할 수 있습니다. 계속하시겠습니까?')) return;
+
+        const { error } = await supabase.from('accounts').delete().eq('id', id);
+
+        if (!error) {
+            toast.success('계좌가 삭제되었습니다.');
+            if (householdId) queryClient.invalidateQueries({ queryKey: ['accounts', householdId] });
+        } else {
+            toast.error('삭제 실패: ' + error.message);
         }
     };
 
@@ -108,7 +164,7 @@ export default function AccountsPage() {
                     <p className="text-sm text-gray-500 dark:text-gray-400">자산을 관리하고 현금 흐름을 추적할 계좌를 설정하세요.</p>
                 </div>
                 <button
-                    onClick={() => setIsModalOpen(true)}
+                    onClick={openModalForNew}
                     className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900"
                 >
                     새 계좌 추가
@@ -124,35 +180,51 @@ export default function AccountsPage() {
                         </li>
                     ) : (
                         accounts.map((account) => (
-                            <li key={account.id} className="flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-zinc-900/50">
-                                <div className="flex flex-col">
-                                    <span className="text-base font-semibold text-gray-900 dark:text-white">{account.name}</span>
-                                    <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                                        <span>{getAccountTypeLabel(account.account_type)}</span>
-                                        {account.bank_name && (
-                                            <>
-                                                <span>·</span>
-                                                <span>{account.bank_name}</span>
-                                            </>
-                                        )}
-                                        {account.account_number && (
-                                            <>
-                                                <span>·</span>
-                                                <span>{account.account_number}</span>
-                                            </>
+                            <li key={account.id} className="flex flex-col p-4 hover:bg-gray-50 dark:hover:bg-zinc-900/50">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex flex-col">
+                                        <span className="text-base font-semibold text-gray-900 dark:text-white">{account.name}</span>
+                                        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                                            <span>{getAccountTypeLabel(account.account_type)}</span>
+                                            {account.bank_name && (
+                                                <>
+                                                    <span>·</span>
+                                                    <span>{account.bank_name}</span>
+                                                </>
+                                            )}
+                                            {account.account_number && (
+                                                <>
+                                                    <span>·</span>
+                                                    <span>{account.account_number}</span>
+                                                </>
+                                            )}
+                                        </div>
+                                        {account.holder_name && (
+                                            <span className="text-xs text-gray-400 dark:text-gray-500">예금주: {account.holder_name}</span>
                                         )}
                                     </div>
-                                    {account.holder_name && (
-                                        <span className="text-xs text-gray-400 dark:text-gray-500">예금주: {account.holder_name}</span>
-                                    )}
+                                    <div className="flex flex-col items-end">
+                                        <span className="text-base font-medium text-gray-900 dark:text-white">
+                                            ₩{account.opening_balance.toLocaleString()}
+                                        </span>
+                                        <span className={`text-xs px-2 py-1 mt-1 rounded-full ${account.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
+                                            {account.is_active ? '활성' : '비활성'}
+                                        </span>
+                                    </div>
                                 </div>
-                                <div className="flex flex-col items-end">
-                                    <span className="text-base font-medium text-gray-900 dark:text-white">
-                                        ₩{account.opening_balance.toLocaleString()}
-                                    </span>
-                                    <span className={`text-xs px-2 py-1 mt-1 rounded-full ${account.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
-                                        {account.is_active ? '활성' : '비활성'}
-                                    </span>
+                                <div className="mt-4 flex justify-end gap-2 border-t border-gray-100 pt-3 dark:border-zinc-800">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); openModalForEdit(account); }}
+                                        className="text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300"
+                                    >
+                                        수정
+                                    </button>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); handleDeleteAccount(account.id); }}
+                                        className="text-xs text-rose-600 hover:text-rose-800 dark:text-rose-400 dark:hover:text-rose-300"
+                                    >
+                                        삭제
+                                    </button>
                                 </div>
                             </li>
                         ))
@@ -160,102 +232,105 @@ export default function AccountsPage() {
                 </ul>
             </div>
 
-            {/* 계좌 추가 모달 (간단 구현) */}
-            {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-zinc-900">
-                        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">새 계좌 추가</h2>
-                        <form onSubmit={handleCreateAccount} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">계좌명 *</label>
-                                <input
-                                    type="text"
-                                    required
-                                    value={newAccountName}
-                                    onChange={(e) => setNewAccountName(e.target.value)}
-                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white sm:text-sm"
-                                    placeholder="예) 카카오뱅크 생활비"
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3">
+            {
+                isModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                        <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-zinc-900">
+                            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
+                                {editingAccount ? '계좌 수정' : '새 계좌 추가'}
+                            </h2>
+                            <form onSubmit={handleCreateAccount} className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">은행/증권사</label>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">계좌명 *</label>
                                     <input
                                         type="text"
-                                        value={newBankName}
-                                        onChange={(e) => setNewBankName(e.target.value)}
+                                        required
+                                        value={newAccountName}
+                                        onChange={(e) => setNewAccountName(e.target.value)}
                                         className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white sm:text-sm"
-                                        placeholder="예) 신한은행"
+                                        placeholder="예) 카카오뱅크 생활비"
                                     />
                                 </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">은행/증권사</label>
+                                        <input
+                                            type="text"
+                                            value={newBankName}
+                                            onChange={(e) => setNewBankName(e.target.value)}
+                                            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white sm:text-sm"
+                                            placeholder="예) 신한은행"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">계좌번호</label>
+                                        <input
+                                            type="text"
+                                            value={newAccountNumber}
+                                            onChange={(e) => setNewAccountNumber(e.target.value)}
+                                            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white sm:text-sm"
+                                            placeholder="예) 110-xxx-xxxxxx"
+                                        />
+                                    </div>
+                                </div>
+
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">계좌번호</label>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">예금주</label>
                                     <input
                                         type="text"
-                                        value={newAccountNumber}
-                                        onChange={(e) => setNewAccountNumber(e.target.value)}
+                                        value={newHolderName}
+                                        onChange={(e) => setNewHolderName(e.target.value)}
                                         className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white sm:text-sm"
-                                        placeholder="예) 110-xxx-xxxxxx"
+                                        placeholder="예) 홍길동"
                                     />
                                 </div>
-                            </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">예금주</label>
-                                <input
-                                    type="text"
-                                    value={newHolderName}
-                                    onChange={(e) => setNewHolderName(e.target.value)}
-                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white sm:text-sm"
-                                    placeholder="예) 홍길동"
-                                />
-                            </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">계좌 유형 *</label>
+                                    <select
+                                        value={newAccountType}
+                                        onChange={(e: any) => setNewAccountType(e.target.value)}
+                                        className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white sm:text-sm"
+                                    >
+                                        <option value="checking">입출금</option>
+                                        <option value="savings">예금</option>
+                                        <option value="installment_savings">적금</option>
+                                        <option value="credit_card">신용카드</option>
+                                        <option value="debit_card">체크카드</option>
+                                        <option value="investment">투자/증권</option>
+                                    </select>
+                                </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">계좌 유형 *</label>
-                                <select
-                                    value={newAccountType}
-                                    onChange={(e: any) => setNewAccountType(e.target.value)}
-                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white sm:text-sm"
-                                >
-                                    <option value="checking">입출금</option>
-                                    <option value="savings">예금</option>
-                                    <option value="installment_savings">적금</option>
-                                    <option value="credit_card">신용카드</option>
-                                    <option value="debit_card">체크카드</option>
-                                    <option value="investment">투자/증권</option>
-                                </select>
-                            </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">초기 잔액</label>
+                                    <CurrencyInput
+                                        value={newOpeningBalance}
+                                        onChange={setNewOpeningBalance}
+                                        className="mt-1 block w-full rounded-md border border-gray-300 py-2 pr-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white sm:text-sm"
+                                    />
+                                </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">초기 잔액</label>
-                                <CurrencyInput
-                                    value={newOpeningBalance}
-                                    onChange={setNewOpeningBalance}
-                                    className="mt-1 block w-full rounded-md border border-gray-300 py-2 pr-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white sm:text-sm"
-                                />
-                            </div>
-
-                            <div className="mt-6 flex justify-end space-x-3">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsModalOpen(false)}
-                                    className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-gray-300 dark:hover:bg-zinc-700"
-                                >
-                                    취소
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900"
-                                >
-                                    저장
-                                </button>
-                            </div>
-                        </form>
+                                <div className="mt-6 flex justify-end space-x-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsModalOpen(false)}
+                                        className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-gray-300 dark:hover:bg-zinc-700"
+                                    >
+                                        취소
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900"
+                                    >
+                                        저장
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 }

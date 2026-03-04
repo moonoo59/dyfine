@@ -26,60 +26,120 @@ export default function TransfersPage() {
     const rules = rulesData || [];
     const instances = instancesData || [];
 
-    // 규칙 생성 폼 상태
+    // 규칙 생성/수정 폼 상태
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingRule, setEditingRule] = useState<any>(null); // TODO: type
+
     const [ruleName, setRuleName] = useState('');
     const [fromAccountId, setFromAccountId] = useState<number | ''>('');
     const [toAccountId, setToAccountId] = useState<number | ''>('');
     const [amount, setAmount] = useState<number>(0);
     const [transferDay, setTransferDay] = useState<number>(1);
 
+    const openModalForNew = () => {
+        setEditingRule(null);
+        setRuleName('');
+        setFromAccountId('');
+        setToAccountId('');
+        setAmount(0);
+        setTransferDay(1);
+        setIsModalOpen(true);
+    };
+
+    const openModalForEdit = (rule: any) => {
+        setEditingRule(rule);
+        setRuleName(rule.name);
+        setFromAccountId(rule.from_account_id || '');
+        setToAccountId(rule.to_account_id || '');
+        setAmount(rule.amount_expected || 0);
+        setTransferDay(rule.day_of_month || 1);
+        setIsModalOpen(true);
+    };
+
     /**
-     * 규칙 생성 핸들러
-     * - 규칙 INSERT 후 임시로 당월 인스턴스도 생성 (원래는 Cron이 할 일)
+    /**
+     * 규칙 저장(생성/수정) 핸들러
      */
-    const handleCreateRule = async (e: React.FormEvent) => {
+    const handleSaveRule = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user || !householdId || amount <= 0 || !fromAccountId || !toAccountId) return;
 
-        // 규칙 INSERT
-        const { data: newRule, error } = await supabase
-            .from('auto_transfer_rules')
-            .insert([{
-                household_id: householdId,
-                name: ruleName,
-                from_account_id: fromAccountId,
-                to_account_id: toAccountId,
-                amount_expected: amount,
-                day_of_month: transferDay,
-                schedule_type: 'monthly'
-            }])
-            .select()
-            .single();
+        let ruleData;
+        let error;
 
-        if (!error && newRule) {
-            // MVP 데모용: 당월 대기 인스턴스 자동 생성 (원래는 Cron이 처리함)
-            const targetDate = new Date();
-            targetDate.setDate(transferDay);
+        if (editingRule) {
+            const { data, error: updateError } = await supabase
+                .from('auto_transfer_rules')
+                .update({
+                    name: ruleName,
+                    from_account_id: fromAccountId,
+                    to_account_id: toAccountId,
+                    amount_expected: amount,
+                    day_of_month: transferDay,
+                })
+                .eq('id', editingRule.id)
+                .select()
+                .single();
+            ruleData = data;
+            error = updateError;
+        } else {
+            const { data, error: insertError } = await supabase
+                .from('auto_transfer_rules')
+                .insert([{
+                    household_id: householdId,
+                    name: ruleName,
+                    from_account_id: fromAccountId,
+                    to_account_id: toAccountId,
+                    amount_expected: amount,
+                    day_of_month: transferDay,
+                    schedule_type: 'monthly'
+                }])
+                .select()
+                .single();
+            ruleData = data;
+            error = insertError;
+        }
 
-            await supabase.from('auto_transfer_instances').insert([{
-                household_id: householdId,
-                rule_id: newRule.id,
-                due_date: targetDate.toISOString().split('T')[0],
-                expected_amount: amount,
-                status: 'pending'
-            }]);
+        if (!error && ruleData) {
+            // 새 규칙일 때만 당월 대기 인스턴스를 하나 자동 생성 (데모 편의상)
+            if (!editingRule) {
+                const targetDate = new Date();
+                targetDate.setDate(transferDay);
 
-            // 모달 닫기 및 폼 초기화
+                await supabase.from('auto_transfer_instances').insert([{
+                    household_id: householdId,
+                    rule_id: ruleData.id,
+                    due_date: targetDate.toISOString().split('T')[0],
+                    expected_amount: amount,
+                    status: 'pending'
+                }]);
+            }
+
+            // 모달 닫기
             setIsModalOpen(false);
-            setRuleName('');
-            setAmount(0);
 
-            // 캐시 무효화로 즉시 리프레시
+            // 캐시 무효화
+            queryClient.invalidateQueries({ queryKey: ['transferRules', householdId] });
+            queryClient.invalidateQueries({ queryKey: ['transferInstances', householdId] });
+            toast.success(editingRule ? '규칙이 수정되었습니다.' : '새 규칙이 생성되었습니다.');
+        } else {
+            toast.error('저장 실패: ' + error?.message);
+        }
+    };
+
+    /**
+     * 규칙 삭제 핸들러
+     */
+    const handleDeleteRule = async (id: number) => {
+        if (!confirm('이 규칙을 삭제하시겠습니까? 관련 대기 이체 인스턴스들도 함께 삭제될 수 있습니다.')) return;
+
+        const { error } = await supabase.from('auto_transfer_rules').delete().eq('id', id);
+        if (!error) {
+            toast.success('규칙이 삭제되었습니다.');
             queryClient.invalidateQueries({ queryKey: ['transferRules', householdId] });
             queryClient.invalidateQueries({ queryKey: ['transferInstances', householdId] });
         } else {
-            toast.error('규칙 생성 실패: ' + error?.message);
+            toast.error('규칙 삭제 실패: ' + error.message);
         }
     };
 
@@ -158,7 +218,7 @@ export default function TransfersPage() {
                         <p className="text-sm text-gray-500 dark:text-gray-400">매월 지정된 일자에 알림을 생성할 이체 규칙입니다.</p>
                     </div>
                     <button
-                        onClick={() => setIsModalOpen(true)}
+                        onClick={openModalForNew}
                         className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700"
                     >
                         새 규칙 추가
@@ -171,18 +231,34 @@ export default function TransfersPage() {
                             <li className="p-6 text-center text-sm text-gray-500">등록된 규칙이 없습니다.</li>
                         ) : (
                             rules.map(rule => (
-                                <li key={rule.id} className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-zinc-900/50">
-                                    <div className="flex flex-col">
-                                        <span className="font-semibold text-gray-900 dark:text-white">{rule.name}</span>
-                                        <span className="text-sm text-gray-500">
-                                            매월 {rule.day_of_month}일 ({rule.from_account?.name || '알수없음'} ➔ {rule.to_account?.name || '알수없음'})
-                                        </span>
+                                <li key={rule.id} className="flex flex-col p-4 hover:bg-gray-50 dark:hover:bg-zinc-900/50">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex flex-col">
+                                            <span className="font-semibold text-gray-900 dark:text-white">{rule.name}</span>
+                                            <span className="text-sm text-gray-500">
+                                                매월 {rule.day_of_month}일 ({rule.from_account?.name || '알수없음'} ➔ {rule.to_account?.name || '알수없음'})
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center space-x-4">
+                                            <span className="font-medium">{rule.amount_expected.toLocaleString()} 원</span>
+                                            <span className={`text-xs px-2 py-1 rounded-full ${rule.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
+                                                {rule.is_active ? '활성' : '비활성'}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center space-x-4">
-                                        <span className="font-medium">{rule.amount_expected.toLocaleString()} 원</span>
-                                        <span className={`text-xs px-2 py-1 rounded-full ${rule.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
-                                            {rule.is_active ? '활성' : '비활성'}
-                                        </span>
+                                    <div className="mt-4 flex justify-end gap-2 border-t border-gray-100 pt-3 dark:border-zinc-800">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); openModalForEdit(rule); }}
+                                            className="text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300"
+                                        >
+                                            수정
+                                        </button>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteRule(rule.id); }}
+                                            className="text-xs text-rose-600 hover:text-rose-800 dark:text-rose-400 dark:hover:text-rose-300"
+                                        >
+                                            삭제
+                                        </button>
                                     </div>
                                 </li>
                             ))
@@ -195,8 +271,10 @@ export default function TransfersPage() {
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
                     <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-zinc-900">
-                        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">새 자동이체 규칙 추가</h2>
-                        <form onSubmit={handleCreateRule} className="space-y-4">
+                        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
+                            {editingRule ? '자동이체 규칙 수정' : '새 자동이체 규칙 추가'}
+                        </h2>
+                        <form onSubmit={handleSaveRule} className="space-y-4">
                             {/* 규칙 이름 */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">규칙 이름</label>

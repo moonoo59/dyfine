@@ -35,6 +35,8 @@ export default function LoansPage() {
 
     // 모달 상태
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingLoan, setEditingLoan] = useState<any>(null);
+
     const [loanName, setLoanName] = useState('');
     const [principal, setPrincipal] = useState(0);
     const [startDate, setStartDate] = useState('');
@@ -42,8 +44,37 @@ export default function LoansPage() {
     const [termMonths, setTermMonths] = useState(12);
     const [repaymentType, setRepaymentType] = useState('annuity');
     const [payDay, setPayDay] = useState(25);
-    const [initialRate, setInitialRate] = useState(0);
+    const [initialRate, setInitialRate] = useState(0); // 생성시에만 쓰임
     const [linkedAccountId, setLinkedAccountId] = useState<number | ''>('');
+
+    const openModalForNew = () => {
+        setEditingLoan(null);
+        setLoanName('');
+        setPrincipal(0);
+        setStartDate('');
+        setMaturityDate('');
+        setTermMonths(12);
+        setRepaymentType('annuity');
+        setPayDay(25);
+        setInitialRate(0);
+        setLinkedAccountId('');
+        setIsModalOpen(true);
+    };
+
+    const openModalForEdit = () => {
+        if (!selectedLoan) return;
+        setEditingLoan(selectedLoan);
+        setLoanName(selectedLoan.name);
+        setPrincipal(selectedLoan.principal_original);
+        setStartDate(selectedLoan.start_date || '');
+        setMaturityDate(selectedLoan.maturity_date || '');
+        setTermMonths(selectedLoan.term_months || 12);
+        setRepaymentType(selectedLoan.repayment_type || 'annuity');
+        setPayDay(selectedLoan.interest_pay_day || 25);
+        setInitialRate(0); // 수정 모드에서는 이력에서 따로 추가하므로 무시
+        setLinkedAccountId(selectedLoan.linked_payment_account_id || '');
+        setIsModalOpen(true);
+    };
 
     // 시뮬레이터 탭 상태
     const [showSimulator, setShowSimulator] = useState(false);
@@ -59,28 +90,59 @@ export default function LoansPage() {
         return rates[rates.length - 1].annual_rate;
     }, [rates]);
 
-    /** 대출 생성 핸들러 */
-    const handleCreateLoan = async (e: React.FormEvent) => {
+    /** 대출 생성/수정 핸들러 */
+    const handleSaveLoan = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!householdId || !loanName || principal <= 0 || initialRate <= 0) return;
+        if (!householdId || !loanName || principal <= 0) return;
 
-        const { error } = await supabase.rpc('create_loan', {
-            p_household_id: householdId,
-            p_name: loanName,
-            p_principal: principal,
-            p_start_date: startDate,
-            p_maturity_date: maturityDate,
-            p_term_months: termMonths,
-            p_repayment_type: repaymentType,
-            p_interest_pay_day: payDay,
-            p_initial_rate: initialRate / 100,
-            p_linked_account_id: linkedAccountId || null,
-        });
+        if (editingLoan) {
+            const { error } = await supabase.from('loans').update({
+                name: loanName,
+                principal_original: principal,
+                start_date: startDate,
+                maturity_date: maturityDate,
+                term_months: termMonths,
+                repayment_type: repaymentType,
+                interest_pay_day: payDay,
+                linked_payment_account_id: linkedAccountId || null,
+            }).eq('id', editingLoan.id);
 
-        if (error) { toast.error('생성 실패: ' + error.message); return; }
+            if (error) { toast.error('수정 실패: ' + error.message); return; }
+            toast.success('대출 정보가 수정되었습니다.');
+        } else {
+            if (initialRate <= 0) return;
+            const { error } = await supabase.rpc('create_loan', {
+                p_household_id: householdId,
+                p_name: loanName,
+                p_principal: principal,
+                p_start_date: startDate,
+                p_maturity_date: maturityDate,
+                p_term_months: termMonths,
+                p_repayment_type: repaymentType,
+                p_interest_pay_day: payDay,
+                p_initial_rate: initialRate / 100,
+                p_linked_account_id: linkedAccountId || null,
+            });
+
+            if (error) { toast.error('생성 실패: ' + error.message); return; }
+            toast.success('대출이 정상적으로 등록되었습니다.');
+        }
+
         setIsModalOpen(false);
-        toast.success('대출이 정상적으로 등록되었습니다.');
         queryClient.invalidateQueries({ queryKey: ['loans', householdId] });
+    };
+
+    const handleDeleteLoan = async () => {
+        if (!selectedLoan || !confirm('이 대출을 삭제하면 모든 금리 이력과 원장도 함께 삭제됩니다. 정말 삭제하시겠습니까?')) return;
+
+        const { error } = await supabase.from('loans').delete().eq('id', selectedLoan.id);
+        if (error) {
+            toast.error('삭제 실패: ' + error.message);
+        } else {
+            toast.success('대출이 삭제되었습니다.');
+            setSelectedLoanId(null);
+            queryClient.invalidateQueries({ queryKey: ['loans', householdId] });
+        }
     };
 
     if (isLoading) return <div className="p-8 text-center text-zinc-500">데이터를 불러오는 중...</div>;
@@ -93,7 +155,7 @@ export default function LoansPage() {
                     <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">대출 관리</h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400">대출 현황, 금리 이력, 상환 스케줄을 관리합니다.</p>
                 </div>
-                <button onClick={() => setIsModalOpen(true)}
+                <button onClick={openModalForNew}
                     className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700">
                     새 대출 등록
                 </button>
@@ -130,6 +192,18 @@ export default function LoansPage() {
                         </div>
                     ) : (
                         <>
+                            {/* 선택 대출 헤더 기능 (수정/삭제) */}
+                            <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                                <div>
+                                    <h2 className="text-lg font-bold text-gray-900 dark:text-white">{selectedLoan.name}</h2>
+                                    <p className="text-sm text-gray-500">{selectedLoan.principal_original.toLocaleString()} 원 · {selectedLoan.term_months}개월</p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button onClick={openModalForEdit} className="rounded-md bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-400">수정</button>
+                                    <button onClick={handleDeleteLoan} className="rounded-md bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-700 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-400">삭제</button>
+                                </div>
+                            </div>
+
                             {/* 금리 이력 */}
                             <div className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
                                 <div className="border-b border-gray-200 bg-gray-50 px-6 py-3 dark:border-zinc-800 dark:bg-zinc-900/50">
@@ -208,8 +282,10 @@ export default function LoansPage() {
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
                     <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-zinc-900 max-h-[90vh] overflow-y-auto">
-                        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">새 대출 등록</h2>
-                        <form onSubmit={handleCreateLoan} className="space-y-4">
+                        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
+                            {editingLoan ? '대출 수정' : '새 대출 등록'}
+                        </h2>
+                        <form onSubmit={handleSaveLoan} className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">대출명</label>
                                 <input type="text" value={loanName} onChange={e => setLoanName(e.target.value)} required
@@ -223,8 +299,9 @@ export default function LoansPage() {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">연이율 (%)</label>
-                                    <input type="number" step="0.01" value={initialRate} onChange={e => setInitialRate(Number(e.target.value))} required
-                                        className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white" />
+                                    <input type="number" step="0.01" value={initialRate} onChange={e => setInitialRate(Number(e.target.value))} required={!editingLoan} disabled={!!editingLoan}
+                                        className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white" />
+                                    {editingLoan && <p className="text-xs text-gray-400 mt-1">금리는 금리 이력에서 관리하세요.</p>}
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
