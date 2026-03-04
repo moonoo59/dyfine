@@ -251,7 +251,8 @@ export default function LoansPage() {
                                         className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
                                         <option value="annuity">원리금균등</option>
                                         <option value="equal_principal">원금균등</option>
-                                        <option value="interest_only">이자만</option>
+                                        <option value="interest_only">만기일시상환(거치식)</option>
+                                        <option value="graduated">체증식</option>
                                     </select>
                                 </div>
                                 <div>
