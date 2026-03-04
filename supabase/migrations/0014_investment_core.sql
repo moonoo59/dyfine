@@ -96,40 +96,30 @@ BEGIN
         WHERE id = v_holding_id;
     END IF;
 
-    -- 4. 현금 흐름 기록 (transaction_entries)
+    -- 4. 거래 전표(Entry) 생성 — create_transaction RPC(0004)와 동일한 스키마 사용
     -- 매수는 지출(expense), 매도는 수입(income)
     INSERT INTO transaction_entries (
-        household_id, occurred_at, entry_type, amount, memo, is_confirmed
+        household_id, occurred_at, entry_type, category_id, memo, source, created_by
     ) VALUES (
-        p_household_id, p_occurred_at,
+        p_household_id,
+        p_occurred_at,
         CASE WHEN p_trade_type = 'buy' THEN 'expense' ELSE 'income' END,
-        v_total_amount,
+        p_category_id,
         p_name || ' ' || CASE WHEN p_trade_type = 'buy' THEN '매수' ELSE '매도' END || ' (' || p_quantity || '주)',
-        true
+        'system',
+        auth.uid()
     ) RETURNING id INTO v_entry_id;
 
-    -- transaction_lines 생성
-    -- 1) 계좌 잔액 변동
-    INSERT INTO transaction_lines (entry_id, account_id, amount, is_increase)
+    -- 5. 거래 라인(Lines) 생성 — 복식부기 패턴
+    -- 매수: 계좌에서 출금 (음수)
+    -- 매도: 계좌로 입금 (양수)
+    -- ※ 계좌 실잔액은 v_account_balance_actual View에서 집계하므로 직접 갱신 불필요
+    INSERT INTO transaction_lines (entry_id, account_id, amount)
     VALUES (
-        v_entry_id, p_account_id, v_total_amount,
-        CASE WHEN p_trade_type = 'buy' THEN false ELSE true END
+        v_entry_id,
+        p_account_id,
+        CASE WHEN p_trade_type = 'buy' THEN -v_total_amount ELSE v_total_amount END
     );
-
-    -- 2) 상대 계정 (카테고리)
-    IF p_category_id IS NOT NULL THEN
-        INSERT INTO transaction_lines (entry_id, category_id, amount, is_increase)
-        VALUES (
-            v_entry_id, p_category_id, v_total_amount,
-            CASE WHEN p_trade_type = 'buy' THEN true ELSE false END
-        );
-    END IF;
-
-    -- 계좌 잔액 갱신
-    UPDATE accounts SET
-        balance = balance + CASE WHEN p_trade_type = 'buy' THEN -v_total_amount ELSE v_total_amount END,
-        updated_at = now()
-    WHERE id = p_account_id;
 
     RETURN v_holding_id;
 END;

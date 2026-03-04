@@ -58,10 +58,10 @@ export default function OnboardingPage({ onComplete }: { onComplete: () => void 
         setLoading(true);
         try {
             const accounts = [];
-            if (accountsToCreate.cash) accounts.push({ household_id: newHouseholdId, name: '현금 지갑', type: 'cash', balance: 0 });
-            if (accountsToCreate.bank) accounts.push({ household_id: newHouseholdId, name: '급여 통장', type: 'bank', balance: 0 });
-            if (accountsToCreate.card) accounts.push({ household_id: newHouseholdId, name: '생활비 카드', type: 'credit', balance: 0 });
-            if (accountsToCreate.investment) accounts.push({ household_id: newHouseholdId, name: '증권 계좌', type: 'investment', balance: 0 });
+            if (accountsToCreate.cash) accounts.push({ household_id: newHouseholdId, name: '현금 지갑', account_type: 'bank', opening_balance: 0 });
+            if (accountsToCreate.bank) accounts.push({ household_id: newHouseholdId, name: '급여 통장', account_type: 'checking', opening_balance: 0 });
+            if (accountsToCreate.card) accounts.push({ household_id: newHouseholdId, name: '생활비 카드', account_type: 'credit_card', opening_balance: 0 });
+            if (accountsToCreate.investment) accounts.push({ household_id: newHouseholdId, name: '증권 계좌', account_type: 'investment', opening_balance: 0 });
 
             if (accounts.length > 0) {
                 const { error } = await supabase.from('accounts').insert(accounts);

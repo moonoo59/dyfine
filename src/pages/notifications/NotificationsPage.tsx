@@ -20,7 +20,7 @@ export default function NotificationsPage() {
 
     /** 개별 알림 읽음 처리 */
     const markAsRead = async (id: number) => {
-        const { error } = await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+        const { error } = await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id);
         if (error) {
             toast.error('알림 처리에 실패했습니다: ' + error.message);
             return;
@@ -31,7 +31,7 @@ export default function NotificationsPage() {
     /** 전체 읽음 처리 */
     const markAllAsRead = async () => {
         if (!householdId) return;
-        const { error } = await supabase.from('notifications').update({ is_read: true }).eq('household_id', householdId).eq('is_read', false);
+        const { error } = await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('household_id', householdId).is('read_at', null);
         if (error) {
             toast.error('전체 읽음 처리에 실패했습니다: ' + error.message);
             return;
