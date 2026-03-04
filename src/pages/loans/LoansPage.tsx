@@ -3,10 +3,11 @@ import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useLoans, useLoanRates, useLoanLedger } from '@/hooks/queries/useLoans';
 import { useAccounts } from '@/hooks/queries/useAccounts';
+import { useCashFlowForecast } from '@/hooks/queries/useCashFlowForecast';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import CurrencyInput from '@/components/ui/CurrencyInput';
-
+import LoanSimulatorPanel from '@/components/loans/LoanSimulatorPanel';
 /**
  * 대출 관리 페이지 (Sprint 7 — Phase 2)
  *
@@ -22,6 +23,7 @@ export default function LoansPage() {
     const { data: loans, isLoading } = useLoans();
     const { data: accountsData } = useAccounts();
     const accounts = accountsData || [];
+    const { data: cashFlowForecast } = useCashFlowForecast();
 
     // 선택된 대출 (상세 보기용)
     const [selectedLoanId, setSelectedLoanId] = useState<number | null>(null);
@@ -43,9 +45,19 @@ export default function LoansPage() {
     const [initialRate, setInitialRate] = useState(0);
     const [linkedAccountId, setLinkedAccountId] = useState<number | ''>('');
 
-    // 시뮬레이터 상태
-    const [simPrepay, setSimPrepay] = useState(0);
+    // 시뮬레이터 탭 상태
     const [showSimulator, setShowSimulator] = useState(false);
+
+    // 현재 선택된 대출의 잔액 & 이율 (시뮬레이터 전달용)
+    const selectedCurrentBalance = useMemo(() => {
+        if (!ledger?.length) return selectedLoan?.principal_original || 0;
+        return ledger[ledger.length - 1].balance_after;
+    }, [selectedLoan, ledger]);
+
+    const selectedAnnualRate = useMemo(() => {
+        if (!rates?.length) return 0.045;
+        return rates[rates.length - 1].annual_rate;
+    }, [rates]);
 
     /** 대출 생성 핸들러 */
     const handleCreateLoan = async (e: React.FormEvent) => {
@@ -70,40 +82,6 @@ export default function LoansPage() {
         toast.success('대출이 정상적으로 등록되었습니다.');
         queryClient.invalidateQueries({ queryKey: ['loans', householdId] });
     };
-
-    /** 추가상환 시뮬레이터 계산 */
-    const simResult = useMemo(() => {
-        if (!selectedLoan || !rates?.length || simPrepay <= 0) return null;
-
-        const currentRate = rates[rates.length - 1].annual_rate;
-        const currentBalance = ledger?.length
-            ? ledger[ledger.length - 1].balance_after
-            : selectedLoan.principal_original;
-        const newBalance = Math.max(0, currentBalance - simPrepay);
-        const monthlyRate = currentRate / 12;
-        const remainMonths = selectedLoan.term_months - (ledger?.length || 1);
-
-        // 기존 월 납입금
-        const oldMonthly = monthlyRate > 0
-            ? (currentBalance * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -Math.max(1, remainMonths)))
-            : currentBalance / Math.max(1, remainMonths);
-
-        // 상환 후 월 납입금
-        const newMonthly = monthlyRate > 0
-            ? (newBalance * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -Math.max(1, remainMonths)))
-            : newBalance / Math.max(1, remainMonths);
-
-        const savedInterest = (oldMonthly * Math.max(1, remainMonths)) - (newMonthly * Math.max(1, remainMonths)) - simPrepay;
-
-        return {
-            currentBalance,
-            newBalance,
-            oldMonthly: Math.round(oldMonthly),
-            newMonthly: Math.round(newMonthly),
-            savedMonthly: Math.round(oldMonthly - newMonthly),
-            savedInterest: Math.round(Math.max(0, savedInterest)),
-        };
-    }, [selectedLoan, rates, ledger, simPrepay]);
 
     if (isLoading) return <div className="p-8 text-center text-zinc-500">데이터를 불러오는 중...</div>;
 
@@ -182,33 +160,14 @@ export default function LoansPage() {
                                 </div>
 
                                 {showSimulator ? (
-                                    /* 추가상환 시뮬레이터 */
-                                    <div className="p-6 space-y-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">추가 상환 금액</label>
-                                            <CurrencyInput value={simPrepay} onChange={setSimPrepay}
-                                                className="mt-1 block w-full rounded-md border border-gray-300 py-2 pr-3 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white" />
-                                        </div>
-                                        {simResult && (
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div className="rounded-lg bg-gray-50 p-4 dark:bg-zinc-900">
-                                                    <p className="text-xs text-gray-500">현재 잔액</p>
-                                                    <p className="text-lg font-bold text-gray-900 dark:text-white">₩{simResult.currentBalance.toLocaleString()}</p>
-                                                </div>
-                                                <div className="rounded-lg bg-green-50 p-4 dark:bg-green-900/10">
-                                                    <p className="text-xs text-gray-500">상환 후 잔액</p>
-                                                    <p className="text-lg font-bold text-green-600 dark:text-green-400">₩{simResult.newBalance.toLocaleString()}</p>
-                                                </div>
-                                                <div className="rounded-lg bg-gray-50 p-4 dark:bg-zinc-900">
-                                                    <p className="text-xs text-gray-500">월 납입금 감소</p>
-                                                    <p className="text-lg font-bold text-blue-600 dark:text-blue-400">-₩{simResult.savedMonthly.toLocaleString()}/월</p>
-                                                </div>
-                                                <div className="rounded-lg bg-amber-50 p-4 dark:bg-amber-900/10">
-                                                    <p className="text-xs text-gray-500">절감 이자</p>
-                                                    <p className="text-lg font-bold text-amber-600 dark:text-amber-400">₩{simResult.savedInterest.toLocaleString()}</p>
-                                                </div>
-                                            </div>
-                                        )}
+                                    /* 풀 시뮬레이션 대시보드 */
+                                    <div className="p-4">
+                                        <LoanSimulatorPanel
+                                            loan={selectedLoan}
+                                            currentBalance={selectedCurrentBalance}
+                                            annualRate={selectedAnnualRate}
+                                            forecast={cashFlowForecast}
+                                        />
                                     </div>
                                 ) : (
                                     /* 원장 테이블 */

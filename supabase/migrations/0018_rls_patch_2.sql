@@ -34,11 +34,3 @@ CREATE POLICY "Members can manage budget_month_overrides"
   USING (is_household_member(household_id))
   WITH CHECK (is_household_member(household_id));
 
--- 4. 즐겨찾기 (favorites - 0012 번에서 생성했지만 재확인용)
-ALTER TABLE favorites ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Members can manage favorites" ON favorites;
-CREATE POLICY "Members can manage favorites"
-  ON favorites FOR ALL TO authenticated
-  USING (is_household_member(household_id))
-  WITH CHECK (is_household_member(household_id));
