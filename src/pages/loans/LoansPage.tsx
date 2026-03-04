@@ -46,6 +46,8 @@ export default function LoansPage() {
     const [payDay, setPayDay] = useState(25);
     const [initialRate, setInitialRate] = useState(0); // 생성시에만 쓰임
     const [linkedAccountId, setLinkedAccountId] = useState<number | ''>('');
+    const [bankName, setBankName] = useState('');
+    const [repaymentPriority, setRepaymentPriority] = useState<number | ''>('');
 
     const openModalForNew = () => {
         setEditingLoan(null);
@@ -58,6 +60,8 @@ export default function LoansPage() {
         setPayDay(25);
         setInitialRate(0);
         setLinkedAccountId('');
+        setBankName('');
+        setRepaymentPriority('');
         setIsModalOpen(true);
     };
 
@@ -73,22 +77,15 @@ export default function LoansPage() {
         setPayDay(selectedLoan.interest_pay_day || 25);
         setInitialRate(0); // 수정 모드에서는 이력에서 따로 추가하므로 무시
         setLinkedAccountId(selectedLoan.linked_payment_account_id || '');
+        setBankName(selectedLoan.bank_name || '');
+        setRepaymentPriority(selectedLoan.repayment_priority || '');
         setIsModalOpen(true);
     };
 
     // 시뮬레이터 탭 상태
     const [showSimulator, setShowSimulator] = useState(false);
 
-    // 현재 선택된 대출의 잔액 & 이율 (시뮬레이터 전달용)
-    const selectedCurrentBalance = useMemo(() => {
-        if (!ledger?.length) return selectedLoan?.principal_original || 0;
-        return ledger[ledger.length - 1].balance_after;
-    }, [selectedLoan, ledger]);
-
-    const selectedAnnualRate = useMemo(() => {
-        if (!rates?.length) return 0.045;
-        return rates[rates.length - 1].annual_rate;
-    }, [rates]);
+    // 현재 선택된 대출 (시뮬레이터 전달용이 이제는 forecast array로 대체됨)
 
     /** 대출 생성/수정 핸들러 */
     const handleSaveLoan = async (e: React.FormEvent) => {
@@ -105,6 +102,8 @@ export default function LoansPage() {
                 repayment_type: repaymentType,
                 interest_pay_day: payDay,
                 linked_payment_account_id: linkedAccountId || null,
+                bank_name: bankName || null,
+                repayment_priority: Number(repaymentPriority) || null,
             }).eq('id', editingLoan.id);
 
             if (error) { toast.error('수정 실패: ' + error.message); return; }
@@ -122,6 +121,8 @@ export default function LoansPage() {
                 p_interest_pay_day: payDay,
                 p_initial_rate: initialRate / 100,
                 p_linked_account_id: linkedAccountId || null,
+                p_bank_name: bankName || null,
+                p_repayment_priority: Number(repaymentPriority) || null,
             });
 
             if (error) { toast.error('생성 실패: ' + error.message); return; }
@@ -173,10 +174,16 @@ export default function LoansPage() {
                                 : 'border-gray-200 bg-white hover:border-gray-300 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-700'
                                 }`}>
                             <div className="flex items-center justify-between">
-                                <span className="font-semibold text-gray-900 dark:text-white">{loan.name}</span>
-                                <span className={`text-xs px-2 py-0.5 rounded-full ${loan.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                                    {loan.is_active ? '상환중' : '완료'}
+                                <span className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                    {loan.bank_name && <span className="text-xs px-2 py-0.5 rounded border border-gray-200 bg-white text-gray-600 dark:bg-zinc-800 dark:text-gray-300 dark:border-zinc-700">{loan.bank_name}</span>}
+                                    {loan.name}
                                 </span>
+                                <div className="flex gap-1 items-center">
+                                    {loan.repayment_priority && <span className="text-xs w-5 h-5 flex items-center justify-center rounded-full bg-indigo-100 text-indigo-700 font-bold dark:bg-indigo-900/50 dark:text-indigo-300">{loan.repayment_priority}</span>}
+                                    <span className={`text-xs px-2 py-0.5 rounded-full ${loan.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                        {loan.is_active ? '상환중' : '완료'}
+                                    </span>
+                                </div>
                             </div>
                             <p className="text-lg font-bold text-gray-900 dark:text-white mt-1">₩{loan.principal_original.toLocaleString()}</p>
                             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{loan.start_date} ~ {loan.maturity_date} ({loan.term_months}개월)</p>
@@ -237,9 +244,7 @@ export default function LoansPage() {
                                     /* 풀 시뮬레이션 대시보드 */
                                     <div className="p-4">
                                         <LoanSimulatorPanel
-                                            loan={selectedLoan}
-                                            currentBalance={selectedCurrentBalance}
-                                            annualRate={selectedAnnualRate}
+                                            loans={cashFlowForecast?.loanPayments || []}
                                             forecast={cashFlowForecast}
                                         />
                                     </div>
@@ -286,10 +291,22 @@ export default function LoansPage() {
                             {editingLoan ? '대출 수정' : '새 대출 등록'}
                         </h2>
                         <form onSubmit={handleSaveLoan} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">대출명</label>
-                                <input type="text" value={loanName} onChange={e => setLoanName(e.target.value)} required
-                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white" />
+                            <div className="grid grid-cols-6 gap-4">
+                                <div className="col-span-3">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">대출명</label>
+                                    <input type="text" value={loanName} onChange={e => setLoanName(e.target.value)} required
+                                        className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white" />
+                                </div>
+                                <div className="col-span-2">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">은행/기관명 (선택)</label>
+                                    <input type="text" value={bankName} onChange={e => setBankName(e.target.value)} placeholder="예: 국민은행"
+                                        className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white" />
+                                </div>
+                                <div className="col-span-1">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" title="워터폴 상환 시 적용할 우선순위 (1이 최우선)">순위</label>
+                                    <input type="number" min={1} value={repaymentPriority} onChange={e => setRepaymentPriority(Number(e.target.value) || '')} placeholder="1"
+                                        className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white" />
+                                </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>

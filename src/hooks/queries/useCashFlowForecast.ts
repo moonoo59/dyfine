@@ -44,6 +44,13 @@ export interface LoanPaymentDetail {
     currentBalance: number;
     /** 연이율 */
     annualRate: number;
+    /** 상환 우선순위 (워터폴용) */
+    repaymentPriority: number | null;
+    /** 남은 기간(개월) 계산용 */
+    start_date: string;
+    term_months: number;
+    interest_pay_day: number;
+    graduated_increase_rate: number;
 }
 
 /**
@@ -118,7 +125,7 @@ export function useCashFlowForecast() {
             // =============================================
             const { data: loansData } = await supabase
                 .from('loans')
-                .select('id, name, principal_original, term_months, repayment_type, interest_pay_day, start_date, graduated_increase_rate')
+                .select('id, name, principal_original, term_months, repayment_type, interest_pay_day, start_date, graduated_increase_rate, repayment_priority')
                 .eq('household_id', householdId)
                 .eq('is_active', true);
 
@@ -217,6 +224,11 @@ export function useCashFlowForecast() {
                     monthlyPayment,
                     currentBalance,
                     annualRate,
+                    repaymentPriority: loan.repayment_priority,
+                    start_date: loan.start_date,
+                    term_months: loan.term_months,
+                    interest_pay_day: loan.interest_pay_day,
+                    graduated_increase_rate: Number(loan.graduated_increase_rate || 0.10)
                 });
                 totalLoanPayment += monthlyPayment;
             }

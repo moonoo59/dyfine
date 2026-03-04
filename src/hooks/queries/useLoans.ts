@@ -15,6 +15,8 @@ export interface Loan {
     interest_pay_day: number;
     linked_payment_account_id: number | null;
     is_active: boolean;
+    bank_name: string | null;
+    repayment_priority: number | null;
 }
 
 /** 금리 이력 인터페이스 */
