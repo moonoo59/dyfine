@@ -7,6 +7,8 @@ import { FlowChart } from '@/components/dashboard/FlowChart';
 import { RecentTransactionsList } from '@/components/dashboard/RecentTransactionsList';
 import { GoalWidget } from '@/components/dashboard/GoalWidget';
 import { ExchangeRateWidget } from '@/components/dashboard/ExchangeRateWidget';
+import MonthlyFlowPanel from '@/components/dashboard/MonthlyFlowPanel';
+import { useCashFlowForecast } from '@/hooks/queries/useCashFlowForecast';
 import MonthPicker from '@/components/ui/MonthPicker';
 
 /**
@@ -37,6 +39,9 @@ export default function DashboardPage() {
 
     // React Query 훅으로 대시보드 데이터 조회 (기간 파라미터)
     const { data, isLoading } = useDashboardData(startDate, endDate);
+    // 현금흐름 예측 데이터 (MonthlyFlowPanel용)
+    const { data: cashFlowForecast } = useCashFlowForecast();
+    const yearMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
 
     // 월 변경 핸들러 (MonthPicker에서 호출)
     const handleMonthChange = (y: number, m: number) => {
@@ -132,6 +137,9 @@ export default function DashboardPage() {
                     </div>
                 </div>
             </div>
+
+            {/* 1.5 통합 현금흐름 패널 */}
+            <MonthlyFlowPanel forecast={cashFlowForecast} yearMonth={yearMonth} />
 
             {/* 2. 차트 및 목표 위젯 영역 */}
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">

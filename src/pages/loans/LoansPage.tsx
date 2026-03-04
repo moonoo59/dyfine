@@ -8,6 +8,18 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import CurrencyInput from '@/components/ui/CurrencyInput';
 import LoanSimulatorPanel from '@/components/loans/LoanSimulatorPanel';
+
+/**
+ * 미래 월별 상환 스케줄 인터페이스
+ */
+interface FutureScheduleRow {
+    month: number;
+    date: string;
+    interest: number;
+    principal: number;
+    payment: number;
+    balance: number;
+}
 /**
  * 대출 관리 페이지 (Sprint 7 — Phase 2)
  *
@@ -82,10 +94,111 @@ export default function LoansPage() {
         setIsModalOpen(true);
     };
 
-    // 시뮬레이터 탭 상태
-    const [showSimulator, setShowSimulator] = useState(false);
+    // 탭 전환: 원장 vs 미래스케줄 vs 시뮬레이터
+    const [scheduleTab, setScheduleTab] = useState<'ledger' | 'future' | 'simulator'>('ledger');
 
-    // 현재 선택된 대출 (시뮬레이터 전달용이 이제는 forecast array로 대체됨)
+    // 금리 추가 UI 상태
+    const [showAddRate, setShowAddRate] = useState(false);
+    const [newRateDate, setNewRateDate] = useState('');
+    const [newRateValue, setNewRateValue] = useState(0);
+
+    // 금리 추가 핸들러
+    const handleAddRate = async () => {
+        if (!selectedLoan || !newRateDate || newRateValue <= 0) return;
+        const { error } = await supabase.from('loan_rate_history').insert([{
+            loan_id: selectedLoan.id,
+            effective_date: newRateDate,
+            annual_rate: newRateValue / 100,
+        }]);
+        if (error) {
+            toast.error('금리 추가 실패: ' + error.message);
+        } else {
+            toast.success('금리가 추가되었습니다.');
+            setShowAddRate(false);
+            setNewRateDate('');
+            setNewRateValue(0);
+            queryClient.invalidateQueries({ queryKey: ['loan_rates', selectedLoan.id] });
+        }
+    };
+
+    // 현재 잔액 계산 (원장의 마지막 잔액 또는 초기 원금)
+    const currentBalance = useMemo(() => {
+        if (ledger && ledger.length > 0) {
+            return ledger[ledger.length - 1].balance_after;
+        }
+        return selectedLoan?.principal_original || 0;
+    }, [ledger, selectedLoan]);
+
+    // 상환 진행률 (%)
+    const repaymentProgress = useMemo(() => {
+        if (!selectedLoan) return 0;
+        const paid = selectedLoan.principal_original - currentBalance;
+        return Math.min(100, Math.max(0, (paid / selectedLoan.principal_original) * 100));
+    }, [selectedLoan, currentBalance]);
+
+    // 총 납부 이자
+    const totalInterestPaid = useMemo(() => {
+        if (!ledger) return 0;
+        return ledger.reduce((sum, e) => sum + e.interest_amount, 0);
+    }, [ledger]);
+
+    // 남은 개월 수
+    const remainingMonths = useMemo(() => {
+        if (!selectedLoan) return 0;
+        const maturity = new Date(selectedLoan.maturity_date);
+        const now = new Date();
+        const diff = (maturity.getFullYear() - now.getFullYear()) * 12 + (maturity.getMonth() - now.getMonth());
+        return Math.max(0, diff);
+    }, [selectedLoan]);
+
+    // 현재 금리 (최신 이력)
+    const currentRate = useMemo(() => {
+        if (!rates || rates.length === 0) return 0;
+        return rates[rates.length - 1].annual_rate;
+    }, [rates]);
+
+    // 미래 상환 스케줄 계산 (클라이언트 사이드)
+    const futureSchedule = useMemo<FutureScheduleRow[]>(() => {
+        if (!selectedLoan || remainingMonths <= 0 || currentRate <= 0) return [];
+
+        const rows: FutureScheduleRow[] = [];
+        let balance = currentBalance;
+        const monthlyRate = currentRate / 12;
+        const type = selectedLoan.repayment_type;
+
+        for (let m = 1; m <= remainingMonths && balance > 0; m++) {
+            const interest = Math.round(balance * monthlyRate);
+            let principalPayment = 0;
+            let payment = 0;
+
+            if (type === 'annuity') {
+                // 원리금균등
+                const totalPayment = Math.round(
+                    balance * monthlyRate * Math.pow(1 + monthlyRate, remainingMonths - m + 1)
+                    / (Math.pow(1 + monthlyRate, remainingMonths - m + 1) - 1)
+                );
+                payment = totalPayment;
+                principalPayment = payment - interest;
+            } else if (type === 'equal_principal') {
+                // 원금균등
+                principalPayment = Math.round(currentBalance / remainingMonths);
+                payment = principalPayment + interest;
+            } else {
+                // 만기일시상환 (interest_only)
+                principalPayment = m === remainingMonths ? balance : 0;
+                payment = interest + principalPayment;
+            }
+
+            balance = Math.max(0, balance - principalPayment);
+
+            const d = new Date();
+            d.setMonth(d.getMonth() + m);
+            const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+            rows.push({ month: m, date: dateStr, interest, principal: principalPayment, payment, balance });
+        }
+        return rows;
+    }, [selectedLoan, currentBalance, remainingMonths, currentRate]);
 
     /** 대출 생성/수정 핸들러 */
     const handleSaveLoan = async (e: React.FormEvent) => {
@@ -168,7 +281,7 @@ export default function LoansPage() {
                     {!loans?.length ? (
                         <div className="rounded-xl border-2 border-dashed border-gray-300 p-8 text-center text-sm text-gray-400 dark:border-zinc-700">등록된 대출이 없습니다.</div>
                     ) : loans.map(loan => (
-                        <button key={loan.id} onClick={() => { setSelectedLoanId(loan.id); setShowSimulator(false); }}
+                        <button key={loan.id} onClick={() => { setSelectedLoanId(loan.id); setScheduleTab('ledger'); }}
                             className={`w-full rounded-xl border p-4 text-left transition-colors ${selectedLoanId === loan.id
                                 ? 'border-indigo-500 bg-indigo-50 dark:border-indigo-600 dark:bg-indigo-900/20'
                                 : 'border-gray-200 bg-white hover:border-gray-300 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-700'
@@ -211,12 +324,55 @@ export default function LoansPage() {
                                 </div>
                             </div>
 
+                            {/* 대출 요약 카드 */}
+                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">현재 잔액</p>
+                                    <p className="text-lg font-bold text-gray-900 dark:text-white">₩{currentBalance.toLocaleString()}</p>
+                                </div>
+                                <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">상환 진행률</p>
+                                    <p className="text-lg font-bold text-indigo-600 dark:text-indigo-400">{repaymentProgress.toFixed(1)}%</p>
+                                    <div className="mt-1 h-2 w-full rounded-full bg-gray-200 dark:bg-zinc-800">
+                                        <div className="h-2 rounded-full bg-indigo-500 transition-all" style={{ width: `${repaymentProgress}%` }} />
+                                    </div>
+                                </div>
+                                <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">납부 이자 합계</p>
+                                    <p className="text-lg font-bold text-red-600 dark:text-red-400">₩{totalInterestPaid.toLocaleString()}</p>
+                                </div>
+                                <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">남은 기간 / 금리</p>
+                                    <p className="text-lg font-bold text-gray-900 dark:text-white">{remainingMonths}개월 · {(currentRate * 100).toFixed(2)}%</p>
+                                </div>
+                            </div>
+
                             {/* 금리 이력 */}
                             <div className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-                                <div className="border-b border-gray-200 bg-gray-50 px-6 py-3 dark:border-zinc-800 dark:bg-zinc-900/50">
+                                <div className="border-b border-gray-200 bg-gray-50 px-6 py-3 flex items-center justify-between dark:border-zinc-800 dark:bg-zinc-900/50">
                                     <h3 className="text-base font-semibold text-gray-900 dark:text-white">📈 금리 이력</h3>
+                                    <button onClick={() => setShowAddRate(!showAddRate)}
+                                        className="text-sm text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 font-medium">
+                                        {showAddRate ? '접기' : '+ 금리 추가'}
+                                    </button>
                                 </div>
                                 <div className="p-4">
+                                    {showAddRate && (
+                                        <div className="mb-4 flex items-end gap-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3 dark:border-indigo-800 dark:bg-indigo-900/20">
+                                            <div className="flex-1">
+                                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">적용일</label>
+                                                <input type="date" value={newRateDate} onChange={e => setNewRateDate(e.target.value)}
+                                                    className="mt-1 block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">연이율 (%)</label>
+                                                <input type="number" step="0.01" value={newRateValue} onChange={e => setNewRateValue(Number(e.target.value))}
+                                                    className="mt-1 block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white" />
+                                            </div>
+                                            <button onClick={handleAddRate}
+                                                className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700">저장</button>
+                                        </div>
+                                    )}
                                     {!rates?.length ? <p className="text-sm text-gray-400">금리 이력이 없습니다.</p> : (
                                         <div className="space-y-2">
                                             {rates.map(r => (
@@ -230,23 +386,69 @@ export default function LoansPage() {
                                 </div>
                             </div>
 
-                            {/* 원장 (상환 스케줄) */}
+                            {/* 상환 스케줄 (원장/미래/시뮬레이터 3탭) */}
                             <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden dark:border-zinc-800 dark:bg-zinc-950">
                                 <div className="border-b border-gray-200 bg-gray-50 px-6 py-3 flex items-center justify-between dark:border-zinc-800 dark:bg-zinc-900/50">
-                                    <h3 className="text-base font-semibold text-gray-900 dark:text-white">📋 상환 원장</h3>
-                                    <button onClick={() => setShowSimulator(!showSimulator)}
-                                        className="text-sm text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 font-medium">
-                                        {showSimulator ? '원장 보기' : '🧮 시뮬레이터'}
-                                    </button>
+                                    <div className="flex gap-4">
+                                        <button onClick={() => setScheduleTab('ledger')}
+                                            className={`text-sm font-medium ${scheduleTab === 'ledger' ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-500' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}>
+                                            📋 원장 (실적)
+                                        </button>
+                                        <button onClick={() => setScheduleTab('future')}
+                                            className={`text-sm font-medium ${scheduleTab === 'future' ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-500' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}>
+                                            📅 미래 스케줄
+                                        </button>
+                                        <button onClick={() => setScheduleTab('simulator')}
+                                            className={`text-sm font-medium ${scheduleTab === 'simulator' ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-500' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}>
+                                            🧮 시뮬레이터
+                                        </button>
+                                    </div>
                                 </div>
 
-                                {showSimulator ? (
-                                    /* 풀 시뮬레이션 대시보드 */
+                                {scheduleTab === 'simulator' ? (
                                     <div className="p-4">
                                         <LoanSimulatorPanel
                                             loans={cashFlowForecast?.loanPayments || []}
                                             forecast={cashFlowForecast}
                                         />
+                                    </div>
+                                ) : scheduleTab === 'future' ? (
+                                    <div className="max-h-96 overflow-y-auto">
+                                        {futureSchedule.length === 0 ? (
+                                            <div className="p-4 text-sm text-gray-400">금리 이력이 없거나 남은 기간이 0입니다.</div>
+                                        ) : (
+                                            <table className="min-w-full text-sm">
+                                                <thead className="sticky top-0 bg-gray-50 dark:bg-zinc-900">
+                                                    <tr>
+                                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">월</th>
+                                                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">납부액</th>
+                                                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">이자</th>
+                                                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">원금</th>
+                                                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">잔액</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-200 dark:divide-zinc-800">
+                                                    {futureSchedule.map(row => (
+                                                        <tr key={row.month}>
+                                                            <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{row.date}</td>
+                                                            <td className="px-4 py-2 text-right text-gray-900 dark:text-white">₩{row.payment.toLocaleString()}</td>
+                                                            <td className="px-4 py-2 text-right text-red-600 dark:text-red-400">₩{row.interest.toLocaleString()}</td>
+                                                            <td className="px-4 py-2 text-right text-gray-900 dark:text-white">₩{row.principal.toLocaleString()}</td>
+                                                            <td className="px-4 py-2 text-right font-semibold text-gray-900 dark:text-white">₩{row.balance.toLocaleString()}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                                <tfoot className="bg-gray-50 dark:bg-zinc-900">
+                                                    <tr>
+                                                        <td className="px-4 py-2 font-semibold text-gray-900 dark:text-white">합계</td>
+                                                        <td className="px-4 py-2 text-right font-bold text-gray-900 dark:text-white">₩{futureSchedule.reduce((s, r) => s + r.payment, 0).toLocaleString()}</td>
+                                                        <td className="px-4 py-2 text-right font-bold text-red-600 dark:text-red-400">₩{futureSchedule.reduce((s, r) => s + r.interest, 0).toLocaleString()}</td>
+                                                        <td className="px-4 py-2 text-right font-bold text-gray-900 dark:text-white">₩{futureSchedule.reduce((s, r) => s + r.principal, 0).toLocaleString()}</td>
+                                                        <td className="px-4 py-2 text-right font-bold text-gray-900 dark:text-white">-</td>
+                                                    </tr>
+                                                </tfoot>
+                                            </table>
+                                        )}
                                     </div>
                                 ) : (
                                     /* 원장 테이블 */
