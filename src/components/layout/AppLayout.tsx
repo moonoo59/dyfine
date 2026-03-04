@@ -29,6 +29,7 @@ export default function AppLayout() {
         { name: '대출', path: '/loans' },
         { name: '투자', path: '/investments' },
         { name: '리포트', path: '/reports' },
+        { name: '오구장장', path: '/petcare' },
     ];
 
     // 설정 하위 메뉴 항목

@@ -10,6 +10,8 @@ export interface Security {
     name: string;
     currency: string;
     market: string;
+    theme?: string;
+    is_dividend_stock?: boolean;
 }
 
 export interface Holding {
@@ -185,6 +187,50 @@ export function useTradeHistory() {
                 .eq('household_id', householdId)
                 .or('memo.ilike.%매수%,memo.ilike.%매도%')
                 .order('occurred_at', { ascending: false });
+            if (error) throw error;
+            return data;
+        },
+        enabled: !!householdId,
+    });
+}
+
+/**
+ * 월별 자산 스냅샷 조회 훅
+ */
+export function useMonthlySnapshots() {
+    const { householdId } = useAuthStore();
+
+    return useQuery({
+        queryKey: ['monthlySnapshots', householdId],
+        queryFn: async () => {
+            if (!householdId) throw new Error('No household ID');
+            const { data, error } = await supabase
+                .from('monthly_asset_snapshots')
+                .select('*')
+                .eq('household_id', householdId)
+                .order('snapshot_date', { ascending: true });
+            if (error) throw error;
+            return data;
+        },
+        enabled: !!householdId,
+    });
+}
+
+/**
+ * 월별 정기 투자금(입금액) 조회 훅
+ */
+export function useMonthlyContributions() {
+    const { householdId } = useAuthStore();
+
+    return useQuery({
+        queryKey: ['monthlyContributions', householdId],
+        queryFn: async () => {
+            if (!householdId) throw new Error('No household ID');
+            const { data, error } = await supabase
+                .from('monthly_investment_contributions')
+                .select('*')
+                .eq('household_id', householdId)
+                .order('month', { ascending: true });
             if (error) throw error;
             return data;
         },

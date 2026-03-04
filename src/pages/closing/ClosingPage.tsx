@@ -129,12 +129,55 @@ export default function ClosingPage() {
             if (error) throw error;
 
             // 투자 코어: 월 마감 시 투자 자산 스냅샷 동시 생성
-            // 마감 월의 마지막 날짜를 구해서 스냅샷 날짜로 지정
             const lastDayOfMonth = new Date(selectedYear, selectedMonth, 0).toISOString().split('T')[0];
             await supabase.rpc('update_holding_snapshot', {
                 p_household_id: householdId,
                 p_snapshot_date: lastDayOfMonth,
             });
+
+            // [F-5-2] 순자산 스냅샷 자동 생성
+            // 계좌 잔액을 유형별로 집계해서 monthly_asset_snapshots에 upsert
+            try {
+                const { data: accts } = await supabase
+                    .from('accounts')
+                    .select('id, name, account_type, balance')
+                    .eq('household_id', householdId);
+
+                if (accts) {
+                    // 유형별 집계
+                    const grouped: Record<string, number> = {};
+                    let totalAssets = 0;
+                    let totalLiabilities = 0;
+
+                    for (const a of accts) {
+                        const t = a.account_type || 'other';
+                        grouped[t] = (grouped[t] || 0) + Number(a.balance || 0);
+                        if (['loan', 'credit_card', 'liability'].includes(t)) {
+                            totalLiabilities += Math.abs(Number(a.balance || 0));
+                        } else {
+                            totalAssets += Number(a.balance || 0);
+                        }
+                    }
+
+                    const snapshotJson = {
+                        accounts_by_type: grouped,
+                        total_assets: totalAssets,
+                        total_liabilities: totalLiabilities,
+                        net_worth: totalAssets - totalLiabilities,
+                        snapshot_date: lastDayOfMonth,
+                    };
+
+                    await supabase
+                        .from('monthly_asset_snapshots')
+                        .upsert({
+                            household_id: householdId,
+                            year_month: yearMonth,
+                            snapshot_json: snapshotJson,
+                        }, { onConflict: 'household_id,year_month' });
+                }
+            } catch (snapErr) {
+                console.error('순자산 스냅샷 저장 실패 (무시):', snapErr);
+            }
 
             // 캐시 무효화
             queryClient.invalidateQueries({ queryKey: ['closings', householdId] });

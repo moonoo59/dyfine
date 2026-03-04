@@ -13,6 +13,7 @@ export interface FavoriteTemplate {
     category_id: number | null;
     amount: number | null;
     memo: string | null;
+    tags: string[] | null;
     sort_order: number;
 }
 

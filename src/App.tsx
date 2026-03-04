@@ -18,6 +18,7 @@ import ReportsPage from '@/pages/reports/ReportsPage';
 import NotificationsPage from '@/pages/notifications/NotificationsPage';
 import LoansPage from '@/pages/loans/LoansPage';
 import InvestmentsPage from '@/pages/investments/InvestmentsPage';
+import PetCareLogPage from '@/pages/petcare/PetCareLogPage';
 
 import { Toaster } from 'react-hot-toast';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
@@ -105,6 +106,7 @@ function App() {
                             <Route path="notifications" element={<NotificationsPage />} />
                             <Route path="loans" element={<LoansPage />} />
                             <Route path="investments" element={<InvestmentsPage />} />
+                            <Route path="petcare" element={<PetCareLogPage />} />
                             <Route path="*" element={<Navigate to="/" replace />} />
                         </Route>
                     )}

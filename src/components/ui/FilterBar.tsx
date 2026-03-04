@@ -23,6 +23,8 @@ export interface FilterValues {
     entryType: string;
     /** 소스 필터 ('' = 전체) */
     source: string;
+    /** 태그 필터 (검색할 태그 이름) */
+    tag: string;
 }
 
 interface FilterBarProps {
@@ -38,6 +40,7 @@ interface FilterBarProps {
         keyword?: boolean;
         entryType?: boolean;
         source?: boolean;
+        tag?: boolean;
     };
 }
 
@@ -53,6 +56,7 @@ export function getDefaultFilterValues(): FilterValues {
         keyword: '',
         entryType: '',
         source: '',
+        tag: '',
     };
 }
 
@@ -65,6 +69,7 @@ export default function FilterBar({ values, onChange, show }: FilterBarProps) {
         keyword: show?.keyword ?? true,
         entryType: show?.entryType ?? false,
         source: show?.source ?? false,
+        tag: show?.tag ?? true,
     };
 
     // 전역 캐시에서 계좌/카테고리 가져오기
@@ -139,7 +144,18 @@ export default function FilterBar({ values, onChange, show }: FilterBarProps) {
                         value={values.keyword}
                         onChange={e => update('keyword', e.target.value)}
                         placeholder="키워드 검색..."
-                        className="rounded-md border border-gray-300 px-3 py-1.5 text-sm w-40 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                        className="rounded-md border border-gray-300 px-3 py-1.5 text-sm w-32 sm:w-40 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                    />
+                )}
+
+                {/* 태그 검색 */}
+                {showFields.tag && (
+                    <input
+                        type="text"
+                        value={values.tag}
+                        onChange={e => update('tag', e.target.value)}
+                        placeholder="태그 검색 (예: 식비)..."
+                        className="rounded-md border border-gray-300 px-3 py-1.5 text-sm w-32 sm:w-40 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
                     />
                 )}
 

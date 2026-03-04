@@ -28,6 +28,7 @@ export interface TransactionEntry {
     is_locked: boolean;
     lines: TransactionLine[];
     category?: Category;
+    tags?: { tag: { id: number; name: string } }[];
 }
 
 /** 거래 라인 인터페이스 */
@@ -87,6 +88,7 @@ export default function TransactionsPage() {
         if (filterValues.keyword) f.keyword = filterValues.keyword;
         if (filterValues.entryType) f.entryType = filterValues.entryType;
         if (filterValues.source) f.source = filterValues.source;
+        if (filterValues.tag) f.tag = filterValues.tag;
 
         return f;
     }, [activeTab, filterValues]);
@@ -117,6 +119,7 @@ export default function TransactionsPage() {
     const [toAccountId, setToAccountId] = useState<number | ''>('');
     const [categoryId, setCategoryId] = useState<number | ''>('');
     const [selectedL1, setSelectedL1] = useState<number | ''>('');
+    const [newTags, setNewTags] = useState('');
 
     // L1/L2 카테고리 분리
     const l1Categories = useMemo(() => categories.filter(c => c.parent_id === null), [categories]);
@@ -148,7 +151,9 @@ export default function TransactionsPage() {
             return;
         }
 
-        const { error: rpcError } = await supabase.rpc('create_transaction', {
+        const tagsArray = newTags.split(',').map(tag => tag.trim()).filter(Boolean);
+
+        const { error: rpcError } = await supabase.rpc('create_transaction_with_tags', {
             p_household_id: householdId,
             p_occurred_at: newDate,
             p_entry_type: newType,
@@ -156,7 +161,8 @@ export default function TransactionsPage() {
             p_memo: newMemo,
             p_source: 'manual',
             p_created_by: user.id,
-            p_lines: linesToInsert
+            p_lines: linesToInsert,
+            p_tags: tagsArray
         });
 
         if (rpcError) {
@@ -179,6 +185,7 @@ export default function TransactionsPage() {
         setToAccountId('');
         setCategoryId('');
         setSelectedL1('');
+        setNewTags('');
     };
 
     /** 즐겨찾기에서 폼 불러오기 */
@@ -189,6 +196,7 @@ export default function TransactionsPage() {
         if (fav.category_id) setCategoryId(fav.category_id);
         if (fav.amount) setNewAmount(fav.amount);
         if (fav.memo) setNewMemo(fav.memo);
+        if (fav.tags) setNewTags(fav.tags.join(', '));
         setIsModalOpen(true);
     };
 
@@ -205,6 +213,7 @@ export default function TransactionsPage() {
                 category_id: categoryId || null,
                 amount: newAmount || null,
                 memo: newMemo || null,
+                tags: newTags ? newTags.split(',').map(tag => tag.trim()).filter(Boolean) : null,
             });
             toast.success('즐겨찾기에 저장되었습니다.');
         } catch (err: any) {
@@ -345,6 +354,16 @@ export default function TransactionsPage() {
                                             <span className="mt-1 text-base font-medium text-gray-900 dark:text-white">
                                                 {entry.memo || (entry.category?.name ?? '미분류')}
                                             </span>
+                                            {/* 태그 칩스 */}
+                                            {entry.tags && entry.tags.length > 0 && (
+                                                <div className="mt-2 flex flex-wrap gap-1">
+                                                    {entry.tags.map((t) => (
+                                                        <span key={t.tag.id} className="inline-flex items-center rounded-md bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+                                                            #{t.tag.name}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="flex flex-col items-end space-y-1 text-sm">
                                             {entry.lines.map((line) => (
@@ -462,6 +481,14 @@ export default function TransactionsPage() {
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">메모 (선택)</label>
                                 <input type="text" value={newMemo} onChange={(e) => setNewMemo(e.target.value)}
                                     className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white" placeholder="설명 입력" />
+                            </div>
+
+                            {/* 태그 */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">태그 (선택)</label>
+                                <input type="text" value={newTags} onChange={(e) => setNewTags(e.target.value)}
+                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white" placeholder="쉼표(,)로 구분하여 입력 (예: 회식, 커피)" />
+                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">여러 태그 입력 시 쉼표로 구별하세요.</p>
                             </div>
 
                             {/* 버튼 영역 */}

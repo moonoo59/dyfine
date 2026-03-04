@@ -14,6 +14,7 @@ export interface TransactionFilters {
     keyword?: string;
     entryType?: string;
     source?: string;
+    tag?: string;
 }
 
 /**
@@ -44,6 +45,9 @@ export function useTransactions(filters: TransactionFilters = {}, limit = 50) {
                     lines:transaction_lines(
                         id, amount, line_memo,
                         account:accounts(name)
+                    ),
+                    tags:entry_tags(
+                        tag:tags(id, name)
                     )
                 `)
                 .eq('household_id', householdId)
@@ -87,6 +91,14 @@ export function useTransactions(filters: TransactionFilters = {}, limit = 50) {
             if (filters.accountId) {
                 result = result.filter(entry =>
                     entry.lines.some(line => line.account_id === filters.accountId)
+                );
+            }
+
+            // 태그 필터 (태그 이름 부분 일치 - 클라이언트 필터)
+            if (filters.tag) {
+                const searchTag = filters.tag.toLowerCase();
+                result = result.filter(entry =>
+                    entry.tags?.some(t => t.tag.name.toLowerCase().includes(searchTag))
                 );
             }
 

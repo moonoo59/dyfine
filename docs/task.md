@@ -124,30 +124,30 @@
 | # | 대상 파일 | 설명 | 상태 |
 |---|---|---|---|
 | F-3-1 | `InvestmentsPage.tsx` | 기존 단일 페이지 → **4-탭 구조** 전환 (전체현황/테마별/계좌별/목표PF). | ✅ |
-| F-3-2 | `components/investments/AccountTab.tsx` | **계좌별 PF 탭** — 기존 기능 + 환율 입력 + 원화 환산 + 테마 뱃지. | ⬜ |
-| F-3-3 | `components/investments/ThemeTab.tsx` | **테마별 PF 탭** — 파이차트(현재 vs 목표) + 테마 클릭 시 종목 펼침. | ⬜ |
-| F-3-4 | `components/investments/TargetTab.tsx` | **목표 PF 탭** — 목표 비중 설정 + 리밸런싱 갭 분석 + 월 정기투자 배분. | ⬜ |
-| F-3-5 | `components/investments/OverviewTab.tsx` | **전체 현황 탭** — 월별 자산 추이 차트 + 순자산 라인 + 스냅샷 저장 버튼. | ⬜ |
-| F-3-6 | `hooks/queries/useInvestments.ts` | `useInvestmentTargets`, `useMonthlySnapshots`, `useMonthlyContributions` 훅 추가. | ⬜ |
+| F-3-2 | `components/investments/AccountTab.tsx` | **계좌별 PF 탭** — 기존 기능 + 환율 입력 + 원화 환산 + 테마 뱃지. | ✅ |
+| F-3-3 | `components/investments/ThemeTab.tsx` | **테마별 PF 탭** — 파이차트(현재 vs 목표) + 테마 클릭 시 종목 펼침. | ✅ |
+| F-3-4 | `components/investments/TargetTab.tsx` | **목표 PF 탭** — 목표 비중 설정 + 리밸런싱 갭 분석 + 월 정기투자 배분. | ✅ |
+| F-3-5 | `components/investments/OverviewTab.tsx` | **전체 현황 탭** — 월별 자산 추이 차트 + 순자산 라인 + 스냅샷 저장 버튼. | ✅ |
+| F-3-6 | `hooks/queries/useInvestments.ts` | `useInvestmentTargets`, `useMonthlySnapshots`, `useMonthlyContributions` 훅 추가. | ✅ |
 
 ### Phase 4: 태그 & 개인 소비 기록
 
 | # | 대상 파일 | 설명 | 상태 |
 |---|---|---|---|
-| F-4-1 | `TransactionsPage.tsx` | Quick Add 모달에 **태그 입력** (콤마 구분) UI 추가. | ⬜ |
-| F-4-2 | `TransactionsPage.tsx` | 거래 목록에 **태그 칩(뱃지)** 표시. | ⬜ |
-| F-4-3 | `TransactionsPage.tsx` | FilterBar에 **태그 필터** 추가. | ⬜ |
-| F-4-4 | `pages/petcare/PetCareLogPage.tsx` | **훈트가르텐 이용 기록 로그 페이지** 신규. 입퇴실 일시 입력 → 요금 자동 계산. | ⬜ |
-| F-4-5 | `App.tsx` + `AppLayout.tsx` | `/petcare` 라우트 추가 + 네비게이션 메뉴 항목 추가. | ⬜ |
+| F-4-1 | `TransactionsPage.tsx` | Quick Add 모달에 **태그 입력** (콤마 구분) UI 추가. | ✅ |
+| F-4-2 | `TransactionsPage.tsx` | 거래 목록에 **태그 칩(뱃지)** 표시. | ✅ |
+| F-4-3 | `TransactionsPage.tsx` | FilterBar에 **태그 필터** 추가. | ✅ |
+| F-4-4 | `pages/petcare/PetCareLogPage.tsx` | **훈트가르텐 이용 기록 로그 페이지** 신규. 입퇴실 일시 입력 → 요금 자동 계산. | ✅ |
+| F-4-5 | `App.tsx` + `AppLayout.tsx` | `/petcare` 라우트 추가 + 네비게이션 메뉴 항목 추가. | ✅ |
 
 ### Phase 5: 카테고리 구조 & 마무리
 
 | # | 대상 | 설명 | 상태 |
 |---|---|---|---|
-| F-5-1 | `CategoriesPage.tsx` | 엑셀 기반 **기본 카테고리 세트 적용** 버튼 (생활비/주거비/차량/오구 등 트리 batch insert). | ⬜ |
-| F-5-2 | 월 마감 연동 | `close_month` RPC 호출 시 **`monthly_asset_snapshots` 자동 생성** 또는 독립 스냅샷 버튼. | ⬜ |
-| F-5-3 | [DOC] | API 명세서 작성 (기존 RPC 7개 + 신규 RPC). | ⬜ |
-| F-5-4 | [DOC] | CHANGELOG v3.0 작성. | ⬜ |
+| F-5-1 | `CategoriesPage.tsx` | 엑셀 기반 **기본 카테고리 세트 적용** 버튼 (생활비/주거비/차량/오구 등 트리 batch insert). | ✅ |
+| F-5-2 | 월 마감 연동 | `close_month` RPC 호출 시 **`monthly_asset_snapshots` 자동 생성** 또는 독립 스냅샷 버튼. | ✅ |
+| F-5-3 | [DOC] | API 명세서 작성 (기존 RPC 7개 + 신규 RPC). | ✅ |
+| F-5-4 | [DOC] | CHANGELOG v3.0 작성. | ✅ |
 
 ---
 
@@ -160,8 +160,8 @@
 | C. 성능/코드품질 | 7 | 2 | 5 | 0 |
 | D. UX/UI | 4 | 0 | 4 | 0 |
 | E. 스프린트 미완료 | 4 | 0 | 3 | 1 |
-| F. v3.0 신규 | 21 | 11 | 10 | 0 |
-| **총계** | **52** | **26** | **25** | **1** |
+| F. v3.0 신규 | 21 | 21 | 0 | 0 |
+| **총계** | **52** | **35** | **16** | **1** |
 
 ---
 
