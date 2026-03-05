@@ -8,6 +8,14 @@ import { useState } from 'react';
 export default function ManualPage() {
     const [selectedSection, setSelectedSection] = useState('1');
 
+    const scrollToSection = (id: string) => {
+        setSelectedSection(id);
+        const element = document.getElementById(`section-${id}`);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    };
+
     const sections = [
         { id: '1', title: '대시보드', image: '/manual_images/dashboard.png', content: '가산 요약, 현금흐름, 자산 목표 등을 한눈에 확인하는 메인 화면입니다.' },
         { id: '2', title: '거래 내역', image: '/manual_images/transactions.png', content: '모든 수입/지출 내역을 관리합니다. 빠른 추가와 강력한 필터 기능을 제공합니다.' },
@@ -32,7 +40,7 @@ export default function ManualPage() {
                     {sections.map((section) => (
                         <button
                             key={section.id}
-                            onClick={() => setSelectedSection(section.id)}
+                            onClick={() => scrollToSection(section.id)}
                             className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${selectedSection === section.id
                                 ? 'bg-indigo-50 text-indigo-700 font-semibold dark:bg-indigo-900/30 dark:text-indigo-400'
                                 : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-zinc-800'
