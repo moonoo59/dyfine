@@ -4,23 +4,33 @@ import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const { setUser, setSession, setIsLoading, setHouseholdId } = useAuthStore();
+    const { setUser, setSession, setIsLoading, setHouseholdId, setDisplayName } = useAuthStore();
 
     useEffect(() => {
-        const fetchHouseholdId = async (userId: string) => {
-            const { data } = await supabase
+        /** 가구 ID + 프로필 display_name 동시 조회 */
+        const fetchUserContext = async (userId: string) => {
+            // 가구 ID 조회
+            const { data: memberData } = await supabase
                 .from('household_members')
                 .select('household_id')
                 .eq('user_id', userId)
                 .single();
-            if (data) setHouseholdId(data.household_id);
+            if (memberData) setHouseholdId(memberData.household_id);
+
+            // 프로필 display_name 조회
+            const { data: profileData } = await supabase
+                .from('profiles')
+                .select('display_name')
+                .eq('user_id', userId)
+                .single();
+            if (profileData) setDisplayName(profileData.display_name);
         };
 
         // 앱 초기화 시 현재 세션 가져오기
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
             setUser(session?.user ?? null);
-            if (session?.user) fetchHouseholdId(session.user.id);
+            if (session?.user) fetchUserContext(session.user.id);
             setIsLoading(false);
         });
 
@@ -31,15 +41,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setSession(session);
             setUser(session?.user ?? null);
             if (session?.user) {
-                fetchHouseholdId(session.user.id);
+                fetchUserContext(session.user.id);
             } else {
                 setHouseholdId(null);
+                setDisplayName(null);
             }
             setIsLoading(false);
         });
 
         return () => subscription.unsubscribe();
-    }, [setSession, setUser, setIsLoading, setHouseholdId]);
+    }, [setSession, setUser, setIsLoading, setHouseholdId, setDisplayName]);
 
     return <>{children}</>;
 }

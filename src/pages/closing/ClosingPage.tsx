@@ -7,6 +7,7 @@ import { useBudgets } from '@/hooks/queries/useBudgets';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import MonthPicker from '@/components/ui/MonthPicker';
 import { toast } from 'react-hot-toast';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 
 /**
  * 월 마감(Closing) 페이지 컴포넌트
@@ -45,6 +46,9 @@ export default function ClosingPage() {
     // 마감 진행 상태
     const [closing, setClosing] = useState(false);
     const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+    // 마감 해제용 상태
+    const [isUnclosing, setIsUnclosing] = useState(false);
+    const [showUncloseConfirm, setShowUncloseConfirm] = useState(false);
 
     // 선택 월의 year_month 문자열 (예: '2026-02')
     const yearMonth = useMemo(() => {
@@ -192,6 +196,36 @@ export default function ClosingPage() {
         }
     };
 
+    /**
+     * 마감 해제 핸들러
+     * - Supabase RPC(unclose_month) 호출
+     */
+    const handleUncloseMonth = async () => {
+        if (!user || !householdId) return;
+        setIsUnclosing(true);
+        setShowUncloseConfirm(false);
+
+        try {
+            const { error } = await supabase.rpc('unclose_month', {
+                p_year_month: yearMonth,
+                p_user_id: user.id,
+            });
+
+            if (error) throw error;
+
+            // 캐시 무효화
+            queryClient.invalidateQueries({ queryKey: ['closings', householdId] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard', householdId] });
+            queryClient.invalidateQueries({ queryKey: ['transactions', householdId] });
+
+            toast.success(`${yearMonth} 마감이 해제되었습니다.\n잠금되었던 전표들을 다시 수정할 수 있습니다.`);
+        } catch (err: any) {
+            toast.error('마감 해제 실패: ' + (err.message || '알 수 없는 오류'));
+        } finally {
+            setIsUnclosing(false);
+        }
+    };
+
     if (historyLoading) {
         return <div className="p-8 text-center text-zinc-500">데이터를 불러오는 중...</div>;
     }
@@ -248,9 +282,18 @@ export default function ClosingPage() {
                         </div>
                     </div>
 
-                    <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
-                        ※ 마감된 월의 전표는 수정/삭제할 수 없습니다. 수정이 필요하면 '조정 전표'를 거래 내역에서 입력하세요.
-                    </p>
+                    <div className="mt-6 flex gap-4">
+                        <p className="flex-1 text-xs text-gray-500 dark:text-gray-400">
+                            ※ 마감된 월의 전표는 수정/삭제할 수 없습니다. 수정이 필요하면 '조정 전표'를 거래 내역에서 입력하거나, 마감을 해제하세요.
+                        </p>
+                        <button
+                            onClick={() => setShowUncloseConfirm(true)}
+                            disabled={isUnclosing}
+                            className="inline-flex items-center justify-center rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 shadow-sm hover:bg-red-50 dark:border-red-900/30 dark:bg-zinc-800 dark:hover:bg-red-950/20"
+                        >
+                            {isUnclosing ? '해제 중...' : '마감 해제'}
+                        </button>
+                    </div>
                 </div>
             ) : (
                 /* 아직 마감되지 않은 월 */
@@ -359,42 +402,27 @@ export default function ClosingPage() {
                 </div>
             </div>
 
-            {/* 마감 확인 다이얼로그 */}
-            {showConfirmDialog && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl dark:bg-zinc-900">
-                        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">마감 확인</h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                            <strong>{yearMonth}</strong> 월의 모든 전표가 잠금 처리됩니다.
-                            {pendingCount > 0 && (
-                                <span className="block mt-2 text-amber-600 dark:text-amber-400">
-                                    ⚠️ 미확인 자동이체 {pendingCount}건이 아직 남아있습니다.
-                                </span>
-                            )}
-                            {pendingLoanWarnings > 0 && (
-                                <span className="block mt-2 text-indigo-600 dark:text-indigo-400">
-                                    📝 대출 납입 연결 누락 가능성 ({pendingLoanWarnings}건 활성화됨)
-                                </span>
-                            )}
-                            이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?
-                        </p>
-                        <div className="flex justify-end space-x-3">
-                            <button
-                                onClick={() => setShowConfirmDialog(false)}
-                                className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 dark:border-zinc-700 dark:text-gray-300"
-                            >
-                                취소
-                            </button>
-                            <button
-                                onClick={handleCloseMonth}
-                                className="rounded-md bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700"
-                            >
-                                마감 실행
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* 마감 확인용 ConfirmModal */}
+            <ConfirmModal
+                isOpen={showConfirmDialog}
+                onConfirm={handleCloseMonth}
+                onCancel={() => setShowConfirmDialog(false)}
+                title="월 마감 확인"
+                message={`${yearMonth} 월의 모든 전표가 잠금 처리됩니다. 계속하시겠습니까?`}
+                confirmLabel="마감 실행"
+                confirmVariant="primary"
+            />
+
+            {/* 마감 해제용 ConfirmModal */}
+            <ConfirmModal
+                isOpen={showUncloseConfirm}
+                onConfirm={handleUncloseMonth}
+                onCancel={() => setShowUncloseConfirm(false)}
+                title="마감 해제 확인"
+                message={`'${yearMonth}' 월의 마감을 해제하시겠습니까? 잠금 해제되면 전표를 다시 수정할 수 있게 됩니다.`}
+                confirmLabel="마감 해제"
+                confirmVariant="danger"
+            />
         </div>
     );
 }

@@ -30,10 +30,12 @@ export default function AppLayout() {
         { name: '투자', path: '/investments' },
         { name: '리포트', path: '/reports' },
         { name: '누리무무', path: '/petcare' },
+        { name: '용돈 관리', path: '/allowance' },
     ];
 
     // 설정 하위 메뉴 항목
     const settingsNavItems = [
+        { name: '마이 프로필', path: '/profile' },
         { name: '계좌 관리', path: '/accounts' },
         { name: '분류 관리', path: '/categories' },
         { name: '월 마감', path: '/closing' },

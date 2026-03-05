@@ -31,6 +31,7 @@ export interface TransactionEntry {
     lines: TransactionLine[];
     category?: Category;
     tags?: { tag: { id: number; name: string } }[];
+    creator?: { display_name: string };
 }
 
 /** 거래 라인 인터페이스 */
@@ -399,6 +400,11 @@ export default function TransactionsPage() {
                                                 <span className="text-sm text-gray-500 dark:text-gray-400">
                                                     {new Date(entry.occurred_at).toLocaleDateString('ko-KR')}
                                                 </span>
+                                                {entry.creator?.display_name && (
+                                                    <span className="text-xs px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                                                        👤 {entry.creator.display_name}
+                                                    </span>
+                                                )}
                                                 {entry.is_locked && <span className="text-xs text-rose-500">🔒</span>}
                                             </div>
                                             <span className="mt-1 text-base font-medium text-gray-900 dark:text-white">

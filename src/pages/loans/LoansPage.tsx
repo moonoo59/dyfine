@@ -31,7 +31,7 @@ interface FutureScheduleRow {
  * - 추가상환 시뮬레이터 (클라이언트 계산)
  */
 export default function LoansPage() {
-    const { householdId } = useAuthStore();
+    const { user, householdId } = useAuthStore();
     const queryClient = useQueryClient();
     const { data: loans, isLoading } = useLoans();
     const { data: accountsData } = useAccounts();
@@ -113,6 +113,7 @@ export default function LoansPage() {
             loan_id: selectedLoan.id,
             effective_date: newRateDate,
             annual_rate: newRateValue / 100,
+            created_by: user?.id
         }]);
         if (error) {
             toast.error('금리 추가 실패: ' + error.message);
@@ -240,6 +241,7 @@ export default function LoansPage() {
                 p_linked_account_id: linkedAccountId || null,
                 p_bank_name: bankName || null,
                 p_repayment_priority: Number(repaymentPriority) || null,
+                p_created_by: user?.id
             });
 
             if (error) { toast.error('생성 실패: ' + error.message); return; }

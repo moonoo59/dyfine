@@ -22,21 +22,32 @@ export default function CurrencyInput({
 }: CurrencyInputProps) {
     // 화면에 보여줄 포맷된 문자열 (콤마 포함)
     const [displayValue, setDisplayValue] = useState<string>(
-        value > 0 ? value.toLocaleString() : ''
+        value !== 0 ? value.toLocaleString() : ''
     );
 
     // 외부에서 value가 바뀌면 display도 동기화
     useEffect(() => {
-        setDisplayValue(value > 0 ? value.toLocaleString() : '');
+        // 입력 중인 값과 동일한 상태가 아닐 때만 업데이트 (커서 튀는 현상 방지)
+        const currentNumeric = parseInt(displayValue.replace(/[^0-9]/g, ''), 10) || 0;
+        if (value !== currentNumeric) {
+            setDisplayValue(value !== 0 ? value.toLocaleString() : '');
+        }
     }, [value]);
 
     // 입력 핸들러: 숫자 외 문자 제거 → 콤마 포맷 → 상위 전달
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const rawValue = e.target.value.replace(/[^0-9]/g, ''); // 숫자만 추출
+
+        if (rawValue === '') {
+            setDisplayValue('');
+            onChange(0);
+            return;
+        }
+
         const numericValue = parseInt(rawValue, 10) || 0;
 
         // 콤마 포맷팅된 문자열로 표시
-        setDisplayValue(numericValue > 0 ? numericValue.toLocaleString() : '');
+        setDisplayValue(numericValue.toLocaleString());
 
         // 상위 컴포넌트에는 순수 숫자 전달
         onChange(numericValue);

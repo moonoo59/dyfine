@@ -4,6 +4,9 @@ import { useAuthStore } from '@/store/authStore';
 import { useCategories } from '@/hooks/queries/useCategories';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
+import Modal from '@/components/ui/Modal';
+import ConfirmModal from '@/components/ui/ConfirmModal';
+import { SkeletonListItem } from '@/components/ui/Skeleton';
 
 /**
  * 기본 카테고리 세트 (대분류 → 소분류 트리)
@@ -43,14 +46,20 @@ export default function CategoriesPage() {
     // 기본 카테고리 적용 중 상태
     const [isApplying, setIsApplying] = useState(false);
 
+    // 수정 모드 상태
+    const [editingCategory, setEditingCategory] = useState<any | null>(null);
+    // 삭제용
+    const [deletingCategory, setDeletingCategory] = useState<any | null>(null);
+    // 기본 세트 적용 확인
+    const [isApplyConfirmOpen, setIsApplyConfirmOpen] = useState(false);
+
     /**
      * 기본 카테고리 세트 일괄 적용
      * [Backend] 대분류 insert → 반환 ID로 소분류 insert
      */
     const handleApplyDefaults = async () => {
         if (!user || !householdId) return;
-        if (!confirm('기본 카테고리 세트를 적용하시겠습니까?\n(기존 카테고리는 유지됩니다)')) return;
-
+        setIsApplyConfirmOpen(false);
         setIsApplying(true);
         try {
             for (const group of DEFAULT_CATEGORIES) {
@@ -63,6 +72,7 @@ export default function CategoriesPage() {
                         parent_id: null,
                         category_type: group.type,
                         is_active: true,
+                        created_by: user.id
                     }])
                     .select('id')
                     .single();
@@ -80,6 +90,7 @@ export default function CategoriesPage() {
                         parent_id: parentData.id,
                         category_type: group.type,
                         is_active: true,
+                        created_by: user.id
                     }));
                     const { error: childError } = await supabase
                         .from('categories')
@@ -100,58 +111,93 @@ export default function CategoriesPage() {
         }
     };
 
-    /**
-     * 카테고리 삭제 핸들러
-     * [Backend] 하위 소분류도 함께 삭제됨 (CASCADE 설정 확인 필요)
-     */
-    const handleDelete = async (id: number, catName: string) => {
-        if (!confirm(`'${catName}' 카테고리를 삭제하시겠습니까?\n(하위 소분류도 함께 삭제됩니다)`)) return;
+    const handleDeleteConfirm = async () => {
+        if (!deletingCategory || !householdId) return;
 
         const { error } = await supabase
             .from('categories')
             .delete()
-            .eq('id', id);
+            .eq('id', deletingCategory.id);
 
         if (!error) {
             queryClient.invalidateQueries({ queryKey: ['categories', householdId] });
-            toast.success(`'${catName}' 카테고리가 삭제되었습니다.`);
+            toast.success(`'${deletingCategory.name}' 카테고리가 삭제되었습니다.`);
         } else {
             toast.error('삭제 실패: ' + error.message);
         }
+        setDeletingCategory(null);
+    };
+
+    const handleOpenEdit = (cat: any) => {
+        setEditingCategory(cat);
+        setName(cat.name);
+        setParentId(cat.parent_id);
+        setCategoryType(cat.category_type);
+        setIsModalOpen(true);
+    };
+
+    /** 하위 카테고리 추가 오픈 */
+    const handleOpenAddSub = (parent: any) => {
+        setEditingCategory(null);
+        setName('');
+        setParentId(parent.id);
+        setCategoryType(parent.category_type);
+        setIsModalOpen(true);
     };
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user || !householdId || !name.trim()) return;
 
-        const { error } = await supabase
-            .from('categories')
-            .insert([{
-                household_id: householdId,
-                name: name,
-                parent_id: parentId,
-                category_type: categoryType,
-                is_active: true
-            }]);
+        let error;
+        if (editingCategory) {
+            const { error: updateError } = await supabase
+                .from('categories')
+                .update({
+                    name: name,
+                    parent_id: parentId,
+                    category_type: categoryType,
+                })
+                .eq('id', editingCategory.id);
+            error = updateError;
+        } else {
+            const { error: insertError } = await supabase
+                .from('categories')
+                .insert([{
+                    household_id: householdId,
+                    name: name,
+                    parent_id: parentId,
+                    category_type: categoryType,
+                    is_active: true,
+                    created_by: user.id
+                }]);
+            error = insertError;
+        }
 
         if (!error) {
             setIsModalOpen(false);
             setName('');
             setParentId(null);
             setCategoryType('expense');
+            setEditingCategory(null);
 
             // 캐시 무효화로 즉시 리로드
-            if (householdId) {
-                queryClient.invalidateQueries({ queryKey: ['categories', householdId] });
-            }
-            toast.success('카테고리가 성공적으로 저장되었습니다.');
+            queryClient.invalidateQueries({ queryKey: ['categories', householdId] });
+            toast.success(editingCategory ? '카테고리가 수정되었습니다.' : '카테고리가 성공적으로 저장되었습니다.');
         } else {
-            toast.error('카테고리 저장 실패: ' + error.message);
+            toast.error('저장 실패: ' + error.message);
         }
     };
 
     if (isLoading) {
-        return <div className="text-zinc-500 p-8">데이터를 불러오는 중...</div>;
+        return (
+            <div className="space-y-4">
+                <div className="h-10 w-48 animate-pulse rounded bg-gray-200 dark:bg-zinc-800" />
+                <div className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950 px-4">
+                    {[...Array(5)].map((_, i) => <SkeletonListItem key={i} />)}
+                </div>
+            </div>
+        );
     }
 
     return (
@@ -163,11 +209,11 @@ export default function CategoriesPage() {
                 </div>
                 <div className="flex items-center space-x-3">
                     <button
-                        onClick={handleApplyDefaults}
+                        onClick={() => setIsApplyConfirmOpen(true)}
                         disabled={isApplying}
                         className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-gray-300 dark:hover:bg-zinc-700 disabled:opacity-50"
                     >
-                        {isApplying ? '적용 중...' : '📋 기본 세트 적용'}
+                        {isApplying ? '적용 중...' : '📋 기본세트 적용'}
                     </button>
                     <button
                         onClick={() => setIsModalOpen(true)}
@@ -195,23 +241,46 @@ export default function CategoriesPage() {
                                             {l1.category_type === 'income' ? '수입' : l1.category_type === 'both' ? '공통' : '지출'}
                                         </span>
                                     </div>
-                                    <button
-                                        onClick={() => handleDelete(l1.id, l1.name)}
-                                        className="text-xs text-red-400 hover:text-red-600 dark:hover:text-red-300"
-                                    >
-                                        삭제
-                                    </button>
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={() => handleOpenAddSub(l1)}
+                                            className="inline-flex h-6 w-6 items-center justify-center rounded bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
+                                            title="하위 카테고리 추가"
+                                        >
+                                            +
+                                        </button>
+                                        <button
+                                            onClick={() => handleOpenEdit(l1)}
+                                            className="text-xs text-indigo-500 hover:text-indigo-700 dark:text-indigo-400"
+                                        >
+                                            수정
+                                        </button>
+                                        <button
+                                            onClick={() => setDeletingCategory(l1)}
+                                            className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400"
+                                        >
+                                            삭제
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="ml-4 space-y-2 border-l-2 border-gray-100 dark:border-zinc-800 pl-4">
                                     {l2Categories.filter(l2 => l2.parent_id === l1.id).map(l2 => (
                                         <div key={l2.id} className="text-sm text-gray-600 dark:text-gray-400 flex items-center justify-between">
                                             <span>{l2.name}</span>
-                                            <button
-                                                onClick={() => handleDelete(l2.id, l2.name)}
-                                                className="text-xs text-red-400 hover:text-red-600 dark:hover:text-red-300"
-                                            >
-                                                ✕
-                                            </button>
+                                            <div className="flex gap-3">
+                                                <button
+                                                    onClick={() => handleOpenEdit(l2)}
+                                                    className="text-xs text-indigo-500 hover:text-indigo-700 dark:text-indigo-400"
+                                                >
+                                                    수정
+                                                </button>
+                                                <button
+                                                    onClick={() => setDeletingCategory(l2)}
+                                                    className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400"
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
                                         </div>
                                     ))}
                                     {l2Categories.filter(l2 => l2.parent_id === l1.id).length === 0 && (
@@ -224,76 +293,99 @@ export default function CategoriesPage() {
                 </ul>
             </div>
 
-            {/* 생성 모달 */}
-            {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-zinc-900">
-                        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">새 카테고리 추가</h2>
-                        <form onSubmit={handleSave} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">카테고리 이름</label>
-                                <input
-                                    type="text"
-                                    required
-                                    value={name}
-                                    onChange={e => setName(e.target.value)}
-                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
-                                    placeholder="예) 식비"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">소속 대분류 (선택)</label>
-                                <select
-                                    value={parentId || ''}
-                                    onChange={e => setParentId(e.target.value ? Number(e.target.value) : null)}
-                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
-                                >
-                                    <option value="">(최상위 대분류로 생성)</option>
-                                    {l1Categories.map(l1 => (
-                                        <option key={l1.id} value={l1.id}>{l1.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* E-09: 지출/수입 구분 */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">유형</label>
-                                <div className="mt-1 flex space-x-3">
-                                    <button type="button" onClick={() => setCategoryType('expense')}
-                                        className={`flex-1 py-2 text-sm rounded-md border ${categoryType === 'expense' ? 'border-red-500 bg-red-50 text-red-700 font-bold dark:bg-red-900/20 dark:text-red-400'
-                                            : 'border-gray-300 text-gray-500 dark:border-zinc-700 dark:text-gray-400'
-                                            }`}>지출</button>
-                                    <button type="button" onClick={() => setCategoryType('income')}
-                                        className={`flex-1 py-2 text-sm rounded-md border ${categoryType === 'income' ? 'border-blue-500 bg-blue-50 text-blue-700 font-bold dark:bg-blue-900/20 dark:text-blue-400'
-                                            : 'border-gray-300 text-gray-500 dark:border-zinc-700 dark:text-gray-400'
-                                            }`}>수입</button>
-                                    <button type="button" onClick={() => setCategoryType('both')}
-                                        className={`flex-1 py-2 text-sm rounded-md border ${categoryType === 'both' ? 'border-purple-500 bg-purple-50 text-purple-700 font-bold dark:bg-purple-900/20 dark:text-purple-400'
-                                            : 'border-gray-300 text-gray-500 dark:border-zinc-700 dark:text-gray-400'
-                                            }`}>공통</button>
-                                </div>
-                            </div>
-
-                            <div className="mt-6 flex justify-end space-x-3">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsModalOpen(false)}
-                                    className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                                >
-                                    취소
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                >
-                                    저장
-                                </button>
-                            </div>
-                        </form>
+            {/* 생성/수정 모달 */}
+            <Modal
+                isOpen={isModalOpen}
+                onClose={() => { setIsModalOpen(false); setEditingCategory(null); setName(''); }}
+                title={editingCategory ? '카테고리 수정' : '새 카테고리 추가'}
+            >
+                <form onSubmit={handleSave} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">카테고리 이름</label>
+                        <input
+                            type="text"
+                            required
+                            value={name}
+                            onChange={e => setName(e.target.value)}
+                            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                            placeholder="예) 식비"
+                        />
                     </div>
-                </div>
-            )}
+
+                    {!editingCategory && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">소속 대분류 (선택)</label>
+                            <select
+                                value={parentId || ''}
+                                onChange={e => setParentId(e.target.value ? Number(e.target.value) : null)}
+                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                            >
+                                <option value="">(최상위 대분류로 생성)</option>
+                                {l1Categories.map(l1 => (
+                                    <option key={l1.id} value={l1.id}>{l1.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
+                    {/* 지출/수입 구분 */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">유형</label>
+                        <div className="mt-1 flex space-x-3">
+                            <button type="button" onClick={() => setCategoryType('expense')}
+                                className={`flex-1 py-2 text-sm rounded-md border ${categoryType === 'expense' ? 'border-red-500 bg-red-50 text-red-700 font-bold dark:bg-red-900/20 dark:text-red-400'
+                                    : 'border-gray-300 text-gray-500 dark:border-zinc-700 dark:text-gray-400'
+                                    }`}>지출</button>
+                            <button type="button" onClick={() => setCategoryType('income')}
+                                className={`flex-1 py-2 text-sm rounded-md border ${categoryType === 'income' ? 'border-blue-500 bg-blue-50 text-blue-700 font-bold dark:bg-blue-900/20 dark:text-blue-400'
+                                    : 'border-gray-300 text-gray-500 dark:border-zinc-700 dark:text-gray-400'
+                                    }`}>수입</button>
+                            <button type="button" onClick={() => setCategoryType('both')}
+                                className={`flex-1 py-2 text-sm rounded-md border ${categoryType === 'both' ? 'border-purple-500 bg-purple-50 text-purple-700 font-bold dark:bg-purple-900/20 dark:text-purple-400'
+                                    : 'border-gray-300 text-gray-500 dark:border-zinc-700 dark:text-gray-400'
+                                    }`}>공통</button>
+                        </div>
+                    </div>
+
+                    <div className="mt-6 flex justify-end space-x-3">
+                        <button
+                            type="button"
+                            onClick={() => { setIsModalOpen(false); setEditingCategory(null); }}
+                            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:bg-zinc-800 dark:border-zinc-700 dark:text-gray-300"
+                        >
+                            취소
+                        </button>
+                        <button
+                            type="submit"
+                            className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700"
+                        >
+                            저장
+                        </button>
+                    </div>
+                </form>
+            </Modal>
+
+            {/* 삭제 확인 모달 */}
+            <ConfirmModal
+                isOpen={deletingCategory !== null}
+                onConfirm={handleDeleteConfirm}
+                onCancel={() => setDeletingCategory(null)}
+                title="카테고리 삭제 확인"
+                message={`'${deletingCategory?.name}' 카테고리를 삭제하시겠습니까? 하위 소분류도 함께 삭제될 수 있습니다.`}
+                confirmLabel="삭제"
+                confirmVariant="danger"
+            />
+
+            {/* 기본 세트 적용 확인 모달 */}
+            <ConfirmModal
+                isOpen={isApplyConfirmOpen}
+                onConfirm={handleApplyDefaults}
+                onCancel={() => setIsApplyConfirmOpen(false)}
+                title="기본 세트 적용"
+                message="기본 카테고리 세트를 적용하시겠습니까? (기존 카테고리는 유지됩니다)"
+                confirmLabel="적용"
+                confirmVariant="primary"
+            />
         </div>
     );
 }

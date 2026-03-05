@@ -19,6 +19,8 @@ import NotificationsPage from '@/pages/notifications/NotificationsPage';
 import LoansPage from '@/pages/loans/LoansPage';
 import InvestmentsPage from '@/pages/investments/InvestmentsPage';
 import PetCareLogPage from '@/pages/petcare/PetCareLogPage';
+import AllowancePage from '@/pages/allowance/AllowancePage';
+import ProfilePage from '@/pages/profile/ProfilePage';
 
 import { Toaster } from 'react-hot-toast';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
@@ -107,6 +109,8 @@ function App() {
                             <Route path="loans" element={<LoansPage />} />
                             <Route path="investments" element={<InvestmentsPage />} />
                             <Route path="petcare" element={<PetCareLogPage />} />
+                            <Route path="allowance" element={<AllowancePage />} />
+                            <Route path="profile" element={<ProfilePage />} />
                             <Route path="*" element={<Navigate to="/" replace />} />
                         </Route>
                     )}

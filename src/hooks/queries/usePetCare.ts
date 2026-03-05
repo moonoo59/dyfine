@@ -41,7 +41,7 @@ export function usePetCareLogs() {
  * 훈트가르텐 이용 기록 추가/수정 훅
  */
 export function useUpsertPetCareLog() {
-    const { householdId } = useAuthStore();
+    const { user, householdId } = useAuthStore();
     const queryClient = useQueryClient();
 
     return useMutation({
@@ -65,7 +65,7 @@ export function useUpsertPetCareLog() {
             } else {
                 const { error } = await supabase
                     .from('petcare_logs')
-                    .insert([payload]);
+                    .insert([{ ...payload, created_by: user?.id }]);
                 if (error) throw error;
             }
         },
