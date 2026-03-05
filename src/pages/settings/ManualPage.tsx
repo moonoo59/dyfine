@@ -18,6 +18,7 @@ type Section = {
         objectPosition: string;
         maxHeight: string;
     };
+    subImages?: { url: string; label: string }[];
     markers?: Marker[];
     overview: string;
     features?: { title: string; desc: string }[];
@@ -33,12 +34,16 @@ const SECTIONS: Section[] = [
         title: '대시보드',
         image: '/manual_images/dashboard.png',
         imageCrop: { objectPosition: 'top center', maxHeight: '480px' },
+        markers: [
+            { top: '80px', left: '150px', width: '380px', height: '140px', label: '가산 요약', description: '총 자산, 부채, 순자산 현황 요약' },
+            { top: '220px', left: '380px', width: '300px', height: '230px', label: '현금흐름', description: '긍정적/부정적 지출 파이프라인' }
+        ],
         overview: '로그인 후 가장 먼저 보이는 화면입니다. 가구의 재정 현황을 한눈에 파악할 수 있습니다.',
         features: [
             { title: '자산 요약 카드', desc: '총 자산, 현금성 잔액, 투자 평가 자산을 실시간으로 표시' },
             { title: '현금흐름', desc: '이번 달 수입(근로/비정기), 대출, 고정지출, 변동지출, 가용 자금 집계' },
             { title: '자산 목표', desc: '총 자산 목표 대비 달성 현황을 시각화' },
-            { title: '자금 흐름', desc: '최근 자금 이동(이체) 내역을 타임라인으로 표시' }
+            { title: '자금 흐름', desc: '최근 자금 이동(이체) 내역 전용 내역을 타임라인으로 표시' }
         ],
         tips: [
             '자산 요약 카드를 클릭하면 해당하는 계좌나 투자 페이지로 즉시 이동합니다.',
@@ -49,10 +54,13 @@ const SECTIONS: Section[] = [
         id: '2',
         title: '거래 내역',
         image: '/manual_images/transactions.png',
-        imageCrop: { objectPosition: 'top center', maxHeight: '500px' },
+        imageCrop: { objectPosition: 'top left', maxHeight: '480px' },
+        subImages: [
+            { url: '/manual_images/transactions_modal.png', label: '거래 등록 팝업 화면' }
+        ],
         markers: [
-            { top: '3%', left: '82%', width: '15%', height: '8%', label: '빠른 추가', description: '클릭하여 새 거래를 등록합니다' },
-            { top: '15%', left: '5%', width: '40%', height: '6%', label: '탭 & 필터', description: '탭 이동 및 검색 필터링' }
+            { top: '230px', left: '550px', width: '120px', height: '40px', label: '빠른 추가', description: '클릭하여 새 거래를 등록합니다' },
+            { top: '160px', left: '260px', width: '300px', height: '50px', label: '탭 & 필터', description: '탭 이동 및 검색 필터링' }
         ],
         overview: '모든 수입/지출 거래를 등록, 조회, 분류하는 핵심 기능입니다.',
         howToUse: [
@@ -72,6 +80,9 @@ const SECTIONS: Section[] = [
         title: '자동 이체',
         image: '/manual_images/transfers.png',
         imageCrop: { objectPosition: 'top center', maxHeight: '450px' },
+        subImages: [
+            { url: '/manual_images/transfers_modal.png', label: '자동 이체 규칙 등록 팝업' }
+        ],
         markers: [
             { top: '3%', left: '80%', width: '15%', height: '8%', label: '새 규칙 추가', description: '정기 이체 규칙을 만듭니다' }
         ],
@@ -308,55 +319,85 @@ export default function ManualPage() {
                             </div>
 
                             {/* 커스텀 스크린샷 뷰어 (CSS 크롭 & 오버레이 마킹) */}
-                            <div className="mb-8 group relative rounded-2xl bg-gray-100 dark:bg-zinc-900 p-2 border border-gray-200 dark:border-zinc-800 hover:border-indigo-300 dark:hover:border-indigo-700/50 transition-colors shadow-sm overflow-hidden">
-                                <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button
-                                        onClick={() => setPreviewImage(section.image)}
-                                        className="bg-gray-900/80 backdrop-blur-md text-white px-3 py-1.5 rounded-lg text-xs font-medium shadow-xl hover:bg-indigo-600 flex items-center gap-2"
-                                    >
-                                        🔍 전체 이미지 확대보기
-                                    </button>
-                                </div>
-                                <div
-                                    className="relative w-full overflow-hidden rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 cursor-zoom-in"
-                                    onClick={() => setPreviewImage(section.image)}
-                                    style={{ height: section.imageCrop?.maxHeight || '400px' }}
-                                >
-                                    <img
-                                        src={section.image}
-                                        alt={`${section.title} 스크린샷`}
-                                        className="w-full h-full object-cover"
-                                        style={{ objectPosition: section.imageCrop?.objectPosition || 'top center' }}
-                                        loading="lazy"
-                                    />
-                                    {/* 오버레이 마커 랜더링 */}
-                                    {section.markers?.map((marker, i) => (
-                                        <div
-                                            key={i}
-                                            className="absolute border-2 border-rose-500 bg-rose-500/10 rounded-md z-10 pointer-events-none"
-                                            style={{
-                                                top: marker.top,
-                                                left: marker.left,
-                                                width: marker.width,
-                                                height: marker.height
-                                            }}
+                            <div className="mb-8 space-y-4">
+                                {/* 메인 스크린샷 뷰 */}
+                                <div className="group relative rounded-2xl bg-gray-100 dark:bg-zinc-900 p-2 border border-gray-200 dark:border-zinc-800 hover:border-indigo-300 dark:hover:border-indigo-700/50 transition-colors shadow-sm overflow-hidden">
+                                    <div className="absolute bottom-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                            onClick={() => setPreviewImage(section.image)}
+                                            className="bg-gray-900/90 backdrop-blur-md text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-2xl hover:bg-indigo-600 hover:scale-105 transition-all flex items-center gap-2 border border-white/10"
                                         >
-                                            <span className="absolute -top-3 -right-3 flex h-6 w-6">
-                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                                                <span className="relative inline-flex rounded-full h-6 w-6 bg-rose-500 border-2 border-white items-center justify-center text-[10px] font-bold text-white shadow-sm">
-                                                    {i + 1}
+                                            🔍 확대해서 보기
+                                        </button>
+                                    </div>
+                                    <div
+                                        className="relative w-full overflow-hidden rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 cursor-pointer"
+                                        onClick={() => setPreviewImage(section.image)}
+                                        style={{ height: section.imageCrop?.maxHeight || '400px' }}
+                                    >
+                                        <img
+                                            src={section.image}
+                                            alt={`${section.title} 스크린샷`}
+                                            className="w-full h-full object-cover"
+                                            style={{ objectPosition: section.imageCrop?.objectPosition || 'top center' }}
+                                            loading="lazy"
+                                        />
+                                        {/* 오버레이 마커 랜더링 */}
+                                        {section.markers?.map((marker, i) => (
+                                            <div
+                                                key={i}
+                                                className="absolute border-[3px] border-rose-500 bg-rose-500/10 rounded-md z-10 pointer-events-none"
+                                                style={{
+                                                    top: marker.top,
+                                                    left: marker.left,
+                                                    width: marker.width,
+                                                    height: marker.height
+                                                }}
+                                            >
+                                                <span className="absolute -top-3 -right-3 flex h-6 w-6">
+                                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                                                    <span className="relative inline-flex rounded-full h-6 w-6 bg-rose-500 border-2 border-white items-center justify-center text-[10px] font-bold text-white shadow-sm">
+                                                        {i + 1}
+                                                    </span>
                                                 </span>
-                                            </span>
-                                            {selectedSection === section.id && marker.description && (
-                                                <div className="absolute top-1/2 -translate-y-1/2 right-[calc(100%+12px)] bg-gray-900 text-white text-xs whitespace-nowrap px-3 py-2 rounded-lg shadow-xl translate-x-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
-                                                    <div className="font-bold text-rose-300 mb-0.5">{marker.label}</div>
-                                                    {marker.description}
-                                                    <div className="absolute top-1/2 -translate-y-1/2 -right-1 w-2 h-2 bg-gray-900 rotate-45"></div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
+                                                {selectedSection === section.id && marker.description && (
+                                                    <div className="absolute top-1/2 -translate-y-1/2 right-[calc(100%+12px)] bg-gray-900 text-white text-xs whitespace-nowrap px-3 py-2 rounded-lg shadow-xl translate-x-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
+                                                        <div className="font-bold text-rose-300 mb-0.5">{marker.label}</div>
+                                                        {marker.description}
+                                                        <div className="absolute top-1/2 -translate-y-1/2 -right-1 w-2 h-2 bg-gray-900 rotate-45"></div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
+
+                                {/* 서브 이미지(팝업 등) 뷰 배열 */}
+                                {section.subImages && section.subImages.length > 0 && (
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                        {section.subImages.map((subImg, idx) => (
+                                            <div
+                                                key={idx}
+                                                className="group relative rounded-xl border border-gray-200 dark:border-zinc-800 hover:border-indigo-400 dark:hover:border-indigo-600 bg-white dark:bg-zinc-950 p-1.5 cursor-pointer transition-all overflow-hidden"
+                                                onClick={() => setPreviewImage(subImg.url)}
+                                            >
+                                                <img
+                                                    src={subImg.url}
+                                                    alt={subImg.label}
+                                                    className="w-full h-24 object-cover object-top rounded-lg group-hover:opacity-80 transition-opacity"
+                                                />
+                                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex items-end p-3 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl">
+                                                    <div className="text-white text-xs font-bold w-full text-center">
+                                                        🔍 팝업 확대하기
+                                                    </div>
+                                                </div>
+                                                <div className="text-center text-[11px] font-bold text-gray-500 dark:text-gray-400 mt-2 px-1">
+                                                    {subImg.label}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             {/* 본문 텍스트 컨텐츠 블록 */}
@@ -447,6 +488,7 @@ export default function ManualPage() {
                                     )}
                                 </div>
                             </div>
+
                         </section>
                     ))}
                 </div>
@@ -466,14 +508,15 @@ export default function ManualPage() {
             <Modal
                 isOpen={!!previewImage}
                 onClose={() => setPreviewImage(null)}
-                title="스크린샷 전체 화면"
+                title="스크린샷 전체 화면 (원본 크기)"
             >
                 {previewImage && (
-                    <div className="rounded-lg overflow-hidden border border-gray-200 dark:border-zinc-700 bg-white dark:bg-black p-1">
+                    <div className="rounded-lg overflow-auto border border-gray-200 dark:border-zinc-700 bg-white dark:bg-black p-1 max-h-[85vh] w-full custom-scrollbar">
                         <img
                             src={previewImage}
                             alt="확대된 매뉴얼 스크린샷"
-                            className="w-full h-auto max-h-[75vh] object-contain rounded"
+                            style={{ minWidth: '1000px', width: '100%', height: 'auto' }}
+                            className="block"
                         />
                     </div>
                 )}
