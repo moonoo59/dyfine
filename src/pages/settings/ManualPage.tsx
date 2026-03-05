@@ -342,9 +342,9 @@ export default function ManualPage() {
     };
 
     return (
-        <div className="flex flex-col lg:flex-row gap-8">
-            {/* 좌측 목차 (고정형 사이드바) */}
-            <aside className="lg:w-64 flex-shrink-0">
+        <div className="flex flex-col lg:flex-row gap-4 lg:gap-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto mt-4">
+            {/* 좌측 목차 (고정형 사이드바 - Desktop 전용) */}
+            <aside className="hidden lg:block lg:w-64 flex-shrink-0">
                 <div className="sticky top-24 space-y-1 bg-white/50 backdrop-blur-sm dark:bg-zinc-950/50 p-2 rounded-xl border border-gray-100 dark:border-zinc-800/50 shadow-sm z-10">
                     <h2 className="mb-3 text-xs font-bold text-gray-400 uppercase tracking-widest px-3 flex items-center gap-2">
                         <span className="w-4 border-t border-gray-300 dark:border-zinc-700"></span>
@@ -374,8 +374,33 @@ export default function ManualPage() {
             </aside>
 
             {/* 우측 본문 영역 */}
-            <main className="flex-1 max-w-4xl space-y-16 pb-32">
-                <header className="border-b border-gray-200 dark:border-zinc-800 pb-8 pt-4">
+            <main className="flex-1 w-full min-w-0 max-w-4xl space-y-12 lg:space-y-16 pb-32">
+
+                {/* 모바일 전용 가로 스크롤 목차 (Sticky) */}
+                <nav className="lg:hidden sticky top-16 z-20 bg-white/90 backdrop-blur-md dark:bg-zinc-950/90 border-b border-gray-200 dark:border-zinc-800 -mx-4 px-4 py-3 sm:-mx-6 sm:px-6 overflow-x-auto hide-scrollbar">
+                    <ul className="flex items-center gap-2 whitespace-nowrap w-max">
+                        {SECTIONS.map((section) => (
+                            <li key={section.id}>
+                                <button
+                                    onClick={() => scrollToSection(section.id)}
+                                    className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors flex items-center gap-2 ${selectedSection === section.id
+                                        ? 'bg-indigo-600 text-white shadow-md'
+                                        : 'bg-gray-100 text-gray-700 dark:bg-zinc-800 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-zinc-700'
+                                        }`}
+                                >
+                                    {/* 현재 활성화된 화면만 번호를 숨기고 체크 표시나 간결하게 노출할 수도 있지만 여기서는 통일 */}
+                                    <span className={`flex items-center justify-center w-5 h-5 rounded-full text-[10px] ${selectedSection === section.id ? 'bg-white/20' : 'bg-gray-200 dark:bg-zinc-700'
+                                        }`}>
+                                        {section.id}
+                                    </span>
+                                    {section.title}
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                </nav>
+
+                <header className="border-b border-gray-200 dark:border-zinc-800 pb-6 lg:pb-8 pt-2 lg:pt-4">
                     <div className="flex items-center gap-3 mb-4">
                         <span className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 px-3 py-1 rounded-full text-xs font-bold tracking-wide">
                             Dyfine v3.0
@@ -494,9 +519,9 @@ export default function ManualPage() {
                             </div>
 
                             {/* 본문 텍스트 컨텐츠 블록 */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white dark:bg-zinc-950 rounded-2xl p-8 border border-gray-100 dark:border-zinc-900 shadow-sm leading-relaxed">
+                            < div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 bg-white dark:bg-zinc-950 rounded-2xl p-5 md:p-8 border border-gray-100 dark:border-zinc-900 shadow-sm leading-relaxed" >
                                 {/* 개요 (전체 차지) */}
-                                <div className="md:col-span-2 space-y-3 mb-4">
+                                < div className="md:col-span-2 space-y-3 mb-4" >
                                     <h3 className="text-xl font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
                                         <span className="text-2xl text-indigo-500">💡</span> 기능 개요
                                     </h3>
@@ -586,9 +611,10 @@ export default function ManualPage() {
                                     )}
                                 </div>
                             </div>
-                        </section>
-                    ))}
-                </div>
+                        </section >
+                    ))
+                    }
+                </div >
 
                 <footer className="pt-16 pb-8 border-t border-gray-200 dark:border-zinc-800 text-center">
                     <div className="w-16 h-1 bg-indigo-600 rounded-full mx-auto mb-6 opacity-20"></div>
@@ -599,10 +625,10 @@ export default function ManualPage() {
                         여러분의 더 나은 자산 관리와 목표 달성을 위해 시스템은 지속적으로 진화하고 있습니다.
                     </p>
                 </footer>
-            </main>
+            </main >
 
             {/* 스크린샷 확대 모달 */}
-            <Modal
+            < Modal
                 isOpen={!!previewImage}
                 onClose={() => setPreviewImage(null)}
                 title="스크린샷 전체 화면 (원본 크기)"
@@ -617,7 +643,7 @@ export default function ManualPage() {
                         />
                     </div>
                 )}
-            </Modal>
-        </div>
+            </Modal >
+        </div >
     );
 }
