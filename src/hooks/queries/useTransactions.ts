@@ -49,7 +49,7 @@ export function useTransactions(filters: TransactionFilters = {}, limit = 50) {
                     tags:entry_tags(
                         tag:tags(id, name)
                     ),
-                    creator:profiles!transaction_entries_created_by_fkey(display_name)
+                    creator:profiles!transaction_entries_created_by_profile_fkey(display_name)
                 `)
                 .eq('household_id', householdId)
                 .order('occurred_at', { ascending: false })
