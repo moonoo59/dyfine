@@ -41,8 +41,14 @@ function calcRequiredPrincipal(
     remainMonths: number,
     elapsedMonths: number,
     graduatedRate: number,
+    gracePeriodMonths: number
 ): number {
     if (balance <= 0) return 0;
+
+    if (elapsedMonths <= gracePeriodMonths && type !== 'interest_only') {
+        return 0; // 거치 기간 중 원금 상환 없음
+    }
+
     const monthlyRate = annualRate / 12;
 
     switch (type) {
@@ -64,8 +70,8 @@ function calcRequiredPrincipal(
             const basePmt = monthlyRate > 0
                 ? (balance * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -remainMonths))
                 : balance / remainMonths;
-            const yearsElapsed = Math.floor(elapsedMonths / 12);
-            const adjustedPmt = basePmt * Math.pow(1 + graduatedRate, yearsElapsed);
+            const elapsedYearsAfterGrace = Math.floor(Math.max(0, elapsedMonths - gracePeriodMonths) / 12);
+            const adjustedPmt = basePmt * Math.pow(1 + graduatedRate, elapsedYearsAfterGrace);
             return Math.max(0, adjustedPmt - interest);
         }
         default:
@@ -128,7 +134,7 @@ export default function LoanSimulatorPanel({ loans, forecast }: LoanSimulatorPan
                 const interest = calcDailyInterest(s.bal, s.annualRate, yr, mo, s.interest_pay_day || 25);
                 nTotalInt += interest;
 
-                const reqPrin = calcRequiredPrincipal(s.repaymentType, s.bal, interest, s.annualRate, remain, elapsed, s.graduated_increase_rate || 0.1);
+                const reqPrin = calcRequiredPrincipal(s.repaymentType, s.bal, interest, s.annualRate, remain, elapsed, s.graduated_increase_rate || 0.1, s.grace_period_months || 0);
                 const actualPrin = Math.min(reqPrin, s.bal);
 
                 s.bal = Math.max(0, s.bal - actualPrin);
@@ -156,7 +162,7 @@ export default function LoanSimulatorPanel({ loans, forecast }: LoanSimulatorPan
                 const remain = Math.max(1, s.term_months - elapsedBase - m + 1);
 
                 const interest = calcDailyInterest(s.bal, s.annualRate, yr, mo, s.interest_pay_day || 25);
-                const reqPrin = calcRequiredPrincipal(s.repaymentType, s.bal, interest, s.annualRate, remain, elapsed, s.graduated_increase_rate || 0.1);
+                const reqPrin = calcRequiredPrincipal(s.repaymentType, s.bal, interest, s.annualRate, remain, elapsed, s.graduated_increase_rate || 0.1, s.grace_period_months || 0);
 
                 return { interest, prin: Math.min(reqPrin, s.bal), loanId: s.loanId };
             });

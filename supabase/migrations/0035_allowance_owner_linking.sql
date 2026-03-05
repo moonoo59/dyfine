@@ -15,11 +15,13 @@ DROP POLICY IF EXISTS "Members can manage personal_allowances" ON personal_allow
 DROP POLICY IF EXISTS "Members can manage allowance_fixed_expenses" ON allowance_fixed_expenses;
 
 -- 3. 새 RLS 정책: owner_user_id가 현재 로그인 사용자와 일치해야만 접근 가능
+DROP POLICY IF EXISTS "Owner can manage own allowances" ON personal_allowances;
 CREATE POLICY "Owner can manage own allowances"
     ON personal_allowances FOR ALL TO authenticated
     USING (owner_user_id = auth.uid())
     WITH CHECK (owner_user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Owner can manage own fixed expenses" ON allowance_fixed_expenses;
 CREATE POLICY "Owner can manage own fixed expenses"
     ON allowance_fixed_expenses FOR ALL TO authenticated
     USING (owner_user_id = auth.uid())

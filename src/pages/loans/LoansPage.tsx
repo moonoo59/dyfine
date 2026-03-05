@@ -61,6 +61,9 @@ export default function LoansPage() {
     const [linkedAccountId, setLinkedAccountId] = useState<number | ''>('');
     const [bankName, setBankName] = useState('');
     const [repaymentPriority, setRepaymentPriority] = useState<number | ''>('');
+    const [hasGracePeriod, setHasGracePeriod] = useState(false);
+    const [gracePeriodMonths, setGracePeriodMonths] = useState(0);
+
     // 삭제 확인 모달 상태
     const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
 
@@ -77,6 +80,8 @@ export default function LoansPage() {
         setLinkedAccountId('');
         setBankName('');
         setRepaymentPriority('');
+        setHasGracePeriod(false);
+        setGracePeriodMonths(0);
         setTermMonths(12);
         setIsModalOpen(true);
     };
@@ -95,6 +100,8 @@ export default function LoansPage() {
         setLinkedAccountId(selectedLoan.linked_payment_account_id || '');
         setBankName(selectedLoan.bank_name || '');
         setRepaymentPriority(selectedLoan.repayment_priority || '');
+        setHasGracePeriod(!!selectedLoan.grace_period_months && selectedLoan.grace_period_months > 0);
+        setGracePeriodMonths(selectedLoan.grace_period_months || 0);
         setIsModalOpen(true);
     };
 
@@ -170,28 +177,49 @@ export default function LoansPage() {
         let balance = currentBalance;
         const monthlyRate = currentRate / 12;
         const type = selectedLoan.repayment_type;
+        const graceMonths = selectedLoan.grace_period_months || 0;
 
         for (let m = 1; m <= remainingMonths && balance > 0; m++) {
             const interest = Math.round(balance * monthlyRate);
             let principalPayment = 0;
             let payment = 0;
 
-            if (type === 'annuity') {
-                // 원리금균등
-                const totalPayment = Math.round(
-                    balance * monthlyRate * Math.pow(1 + monthlyRate, remainingMonths - m + 1)
-                    / (Math.pow(1 + monthlyRate, remainingMonths - m + 1) - 1)
-                );
-                payment = totalPayment;
-                principalPayment = payment - interest;
-            } else if (type === 'equal_principal') {
-                // 원금균등
-                principalPayment = Math.round(currentBalance / remainingMonths);
-                payment = principalPayment + interest;
-            } else {
-                // 만기일시상환 (interest_only)
+            if (type === 'interest_only') {
+                // 만기일시상환
                 principalPayment = m === remainingMonths ? balance : 0;
                 payment = interest + principalPayment;
+            } else if (m <= graceMonths) {
+                // 거치 기간: 이자만 납부
+                principalPayment = 0;
+                payment = interest;
+            } else {
+                // 원리금균등, 원금균등 등 처리
+                const remainingPostGrace = remainingMonths - graceMonths;
+                const mPostGrace = m - graceMonths;
+
+                if (type === 'annuity') {
+                    // 원리금균등
+                    const totalPayment = Math.round(
+                        balance * monthlyRate * Math.pow(1 + monthlyRate, remainingPostGrace - mPostGrace + 1)
+                        / (Math.pow(1 + monthlyRate, remainingPostGrace - mPostGrace + 1) - 1)
+                    );
+                    payment = totalPayment;
+                    principalPayment = payment - interest;
+                } else if (type === 'equal_principal') {
+                    // 원금균등
+                    // 남아있는 원금을 남은 기간으로 균등하게 나눔
+                    const fixedPrincipal = Math.round(currentBalance / remainingPostGrace);
+                    principalPayment = m === remainingMonths ? balance : fixedPrincipal;
+                    payment = principalPayment + interest;
+                } else if (type === 'graduated') {
+                    // 체증식 (단순화된 모델: 매월 0.5%씩 납입액 증가)
+                    // 실제로는 더 복잡하지만, 시각화 용도로 간단히 구현
+                    const basePayment = Math.round(currentBalance / remainingPostGrace) * 0.7; // 초기 부담 낮게
+                    const increasedPayment = Math.round(basePayment * Math.pow(1.005, mPostGrace - 1));
+                    principalPayment = Math.max(0, increasedPayment - interest);
+                    if (m === remainingMonths) principalPayment = balance; // 마지막 달에 잔여 원금 전부 상환
+                    payment = principalPayment + interest;
+                }
             }
 
             balance = Math.max(0, balance - principalPayment);
@@ -222,6 +250,7 @@ export default function LoansPage() {
                 linked_payment_account_id: linkedAccountId || null,
                 bank_name: bankName || null,
                 repayment_priority: Number(repaymentPriority) || null,
+                grace_period_months: hasGracePeriod && repaymentType !== 'interest_only' ? gracePeriodMonths : 0,
             }).eq('id', editingLoan.id);
 
             if (error) { toast.error('수정 실패: ' + error.message); return; }
@@ -241,7 +270,8 @@ export default function LoansPage() {
                 p_linked_account_id: linkedAccountId || null,
                 p_bank_name: bankName || null,
                 p_repayment_priority: Number(repaymentPriority) || null,
-                p_created_by: user?.id
+                p_created_by: user?.id,
+                p_grace_period_months: hasGracePeriod && repaymentType !== 'interest_only' ? gracePeriodMonths : 0
             });
 
             if (error) { toast.error('생성 실패: ' + error.message); return; }
@@ -563,6 +593,46 @@ export default function LoansPage() {
                                         className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white" />
                                 </div>
                             </div>
+
+                            {/* 거치 기간 UI */}
+                            <div className="rounded-lg bg-gray-50 p-4 border border-gray-200 dark:bg-zinc-900/50 dark:border-zinc-800">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="checkbox"
+                                            id="gracePeriodCheckbox"
+                                            checked={hasGracePeriod}
+                                            onChange={e => setHasGracePeriod(e.target.checked)}
+                                            disabled={repaymentType === 'interest_only'}
+                                            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:checked:bg-indigo-500"
+                                        />
+                                        <label htmlFor="gracePeriodCheckbox" className="text-sm font-bold text-gray-800 dark:text-gray-200 cursor-pointer">
+                                            거치 기간 적용 <span className="text-xs font-normal text-gray-500">(이자만 납부)</span>
+                                        </label>
+                                    </div>
+                                    {repaymentType === 'interest_only' && (
+                                        <span className="text-xs text-rose-500 font-medium">만기일시상환은 적용 불가</span>
+                                    )}
+                                </div>
+
+                                {hasGracePeriod && repaymentType !== 'interest_only' && (
+                                    <div className="flex items-center gap-3 animate-fadeIn">
+                                        <label className="text-sm font-medium text-gray-700 dark:text-gray-400">거치 개월수 :</label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                max={termMonths - 1}
+                                                value={gracePeriodMonths}
+                                                onChange={e => setGracePeriodMonths(Number(e.target.value))}
+                                                className="block w-24 rounded-md border border-gray-300 px-3 py-1.5 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white text-right font-medium"
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 pointer-events-none">개월</span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">연결 계좌 (선택)</label>
                                 <select value={linkedAccountId} onChange={e => setLinkedAccountId(Number(e.target.value) || '')}
@@ -571,11 +641,11 @@ export default function LoansPage() {
                                     {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                                 </select>
                             </div>
-                            <div className="flex justify-end space-x-3">
+                            <div className="flex justify-end space-x-3 pt-2 border-t border-gray-200 dark:border-zinc-800">
                                 <button type="button" onClick={() => setIsModalOpen(false)}
-                                    className="rounded-md border border-gray-300 px-4 py-2 text-sm dark:border-zinc-700 dark:text-gray-300">취소</button>
+                                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-zinc-700 dark:text-gray-300 dark:hover:bg-zinc-800 transition-colors">취소</button>
                                 <button type="submit"
-                                    className="rounded-md bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700">등록</button>
+                                    className="rounded-lg bg-indigo-600 px-6 py-2 text-sm font-bold text-white shadow-md hover:bg-indigo-700 transition-colors active:scale-95">저장</button>
                             </div>
                         </form>
                     </div>

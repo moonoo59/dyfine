@@ -51,6 +51,7 @@ export interface LoanPaymentDetail {
     term_months: number;
     interest_pay_day: number;
     graduated_increase_rate: number;
+    grace_period_months: number;
 }
 
 /**
@@ -125,7 +126,7 @@ export function useCashFlowForecast() {
             // =============================================
             const { data: loansData } = await supabase
                 .from('loans')
-                .select('id, name, principal_original, term_months, repayment_type, interest_pay_day, start_date, graduated_increase_rate, repayment_priority')
+                .select('id, name, principal_original, term_months, repayment_type, interest_pay_day, start_date, graduated_increase_rate, repayment_priority, grace_period_months')
                 .eq('household_id', householdId)
                 .eq('is_active', true);
 
@@ -171,45 +172,47 @@ export function useCashFlowForecast() {
                 const elapsedMonths = Math.max(0,
                     (currentYear - loanStart.getFullYear()) * 12 + currentMonth - loanStart.getMonth()
                 );
-                const remainMonths = Math.max(1, loan.term_months - elapsedMonths);
+                const graceMonths = Number(loan.grace_period_months || 0);
 
-                switch (loan.repayment_type) {
-                    case 'annuity': {
-                        // 원리금균등: PMT 공식 (일할이자 보정)
-                        const monthlyRate = annualRate / 12;
-                        const pmt = monthlyRate > 0
-                            ? (currentBalance * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -remainMonths))
-                            : currentBalance / remainMonths;
-                        principalAmount = Math.round(pmt - interestAmount);
-                        break;
+                if (elapsedMonths < graceMonths && loan.repayment_type !== 'interest_only') {
+                    principalAmount = 0; // 거치 기간 (이자만 납부)
+                } else {
+                    const postGraceRemainMonths = Math.max(1, loan.term_months - graceMonths - Math.max(0, elapsedMonths - graceMonths));
+
+                    switch (loan.repayment_type) {
+                        case 'annuity': {
+                            const monthlyRate = annualRate / 12;
+                            const pmt = monthlyRate > 0
+                                ? (currentBalance * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -postGraceRemainMonths))
+                                : currentBalance / postGraceRemainMonths;
+                            principalAmount = Math.max(0, Math.round(pmt - interestAmount));
+                            break;
+                        }
+                        case 'equal_principal': {
+                            principalAmount = Math.round(currentBalance / postGraceRemainMonths);
+                            break;
+                        }
+                        case 'interest_only':
+                        case 'bullet': {
+                            principalAmount = 0;
+                            break;
+                        }
+                        case 'graduated': {
+                            const increaseRate = Number(loan.graduated_increase_rate || 0.10);
+                            const elapsedYearsAfterGrace = Math.floor(Math.max(0, elapsedMonths - graceMonths) / 12);
+
+                            const monthlyRate = annualRate / 12;
+                            const basePmt = monthlyRate > 0
+                                ? (currentBalance * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -postGraceRemainMonths))
+                                : currentBalance / postGraceRemainMonths;
+
+                            const adjustedPmt = basePmt * Math.pow(1 + increaseRate, elapsedYearsAfterGrace);
+                            principalAmount = Math.max(0, Math.round(adjustedPmt - interestAmount));
+                            break;
+                        }
+                        default:
+                            principalAmount = 0;
                     }
-                    case 'equal_principal': {
-                        // 원금균등: 원금/남은개월수 (고정) + 이자(변동)
-                        principalAmount = Math.round(currentBalance / remainMonths);
-                        break;
-                    }
-                    case 'interest_only':
-                    case 'bullet': {
-                        // 이자만 / 만기일시상환: 원금 상환 0 (만기에 일괄)
-                        principalAmount = 0;
-                        break;
-                    }
-                    case 'graduated': {
-                        // 체증식: 기본 원리금균등 기준으로 연차별 증가율 적용
-                        const increaseRate = Number(loan.graduated_increase_rate || 0.10);
-                        const elapsedYears = Math.floor(elapsedMonths / 12);
-                        const monthlyRate = annualRate / 12;
-                        // 기초 PMT (1년차 기준)
-                        const basePmt = monthlyRate > 0
-                            ? (currentBalance * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -remainMonths))
-                            : currentBalance / remainMonths;
-                        // 연차별 증가 적용
-                        const adjustedPmt = basePmt * Math.pow(1 + increaseRate, elapsedYears);
-                        principalAmount = Math.round(adjustedPmt - interestAmount);
-                        break;
-                    }
-                    default:
-                        principalAmount = 0;
                 }
 
                 principalAmount = Math.max(0, principalAmount);
@@ -228,7 +231,8 @@ export function useCashFlowForecast() {
                     start_date: loan.start_date,
                     term_months: loan.term_months,
                     interest_pay_day: loan.interest_pay_day,
-                    graduated_increase_rate: Number(loan.graduated_increase_rate || 0.10)
+                    graduated_increase_rate: loan.graduated_increase_rate,
+                    grace_period_months: Number(loan.grace_period_months || 0),
                 });
                 totalLoanPayment += monthlyPayment;
             }

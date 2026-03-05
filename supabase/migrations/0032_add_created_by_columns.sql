@@ -15,7 +15,7 @@ ALTER TABLE classification_rules ADD COLUMN IF NOT EXISTS created_by uuid REFERE
 ALTER TABLE investment_targets ADD COLUMN IF NOT EXISTS created_by uuid REFERENCES profiles(user_id) ON DELETE SET NULL;
 
 -- 1.1. 기존 transaction_entries.created_by도 profiles(user_id)를 참조하도록 FK 추가 (선택사항이나 조인 용이성 위해 권장)
--- ALTER TABLE transaction_entries DROP CONSTRAINT IF EXISTS transaction_entries_created_by_fkey;
+ALTER TABLE transaction_entries DROP CONSTRAINT IF EXISTS transaction_entries_created_by_profile_fkey;
 ALTER TABLE transaction_entries ADD CONSTRAINT transaction_entries_created_by_profile_fkey FOREIGN KEY (created_by) REFERENCES profiles(user_id);
 
 -- 2. 기존 데이터 업데이트 (선택 사항: 현재 연결된 household의 owner로 설정하거나 skip)

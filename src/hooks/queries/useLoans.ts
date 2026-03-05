@@ -17,6 +17,7 @@ export interface Loan {
     is_active: boolean;
     bank_name: string | null;
     repayment_priority: number | null;
+    grace_period_months: number | null;
 }
 
 /** 금리 이력 인터페이스 */
