@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { supabase } from '@/lib/supabase/client';
 import { toast } from 'react-hot-toast';
@@ -6,16 +6,50 @@ import { toast } from 'react-hot-toast';
 /**
  * 마이 프로필 페이지
  *
- * [Designer] 현재 계정 정보 확인 + 비밀번호 변경 기능
+ * [Designer] 현재 계정 정보 확인 + 표시 이름 변경 + 비밀번호 변경 기능
  */
 export default function ProfilePage() {
-    const { user, displayName } = useAuthStore();
+    const { user, displayName, setDisplayName } = useAuthStore();
+
+    // 표시 이름 수정 상태
+    const [newName, setNewName] = useState(displayName || '');
+    const [isNameSaving, setIsNameSaving] = useState(false);
+
+    // displayName이 나중에 로드될 경우를 대비해 동기화
+    useEffect(() => {
+        if (displayName) setNewName(displayName);
+    }, [displayName]);
 
     // 비밀번호 변경 폼 상태
     const [currentPassword, setCurrentPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [isSaving, setIsSaving] = useState(false);
+    const [isPasswordSaving, setIsPasswordSaving] = useState(false);
+
+    /** 표시 이름 수정 핸들러 */
+    const handleUpdateDisplayName = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user || !newName.trim()) return;
+
+        setIsNameSaving(true);
+        try {
+            const { error } = await supabase
+                .from('profiles')
+                .upsert({
+                    user_id: user.id,
+                    display_name: newName.trim(),
+                }, { onConflict: 'user_id' });
+
+            if (error) throw error;
+
+            setDisplayName(newName.trim());
+            toast.success('표시 이름이 변경되었습니다.');
+        } catch (err: any) {
+            toast.error('변경 실패: ' + err.message);
+        } finally {
+            setIsNameSaving(false);
+        }
+    };
 
     /** 비밀번호 변경 핸들러 */
     const handleChangePassword = async (e: React.FormEvent) => {
@@ -32,7 +66,7 @@ export default function ProfilePage() {
             return;
         }
 
-        setIsSaving(true);
+        setIsPasswordSaving(true);
         try {
             // 1. 현재 비밀번호 확인 (재로그인)
             const { error: verifyError } = await supabase.auth.signInWithPassword({
@@ -57,7 +91,7 @@ export default function ProfilePage() {
         } catch (err: any) {
             toast.error('변경 실패: ' + err.message);
         } finally {
-            setIsSaving(false);
+            setIsPasswordSaving(false);
         }
     };
 
@@ -87,6 +121,33 @@ export default function ProfilePage() {
                         </span>
                     </div>
                 </div>
+            </div>
+
+            {/* 표시 이름 변경 */}
+            <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">표시 이름 변경</h3>
+                <form onSubmit={handleUpdateDisplayName} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">표시 이름</label>
+                        <input
+                            type="text"
+                            required
+                            value={newName}
+                            onChange={(e) => setNewName(e.target.value)}
+                            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                            placeholder="예) 덕원"
+                            maxLength={20}
+                        />
+                        <p className="mt-1 text-xs text-gray-400">용돈 관리, 거래 입력자 표시 등에 사용됩니다.</p>
+                    </div>
+                    <button
+                        type="submit"
+                        disabled={isNameSaving || !newName.trim() || newName === displayName}
+                        className="w-full rounded-md bg-indigo-600 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                        {isNameSaving ? '저장 중...' : '이름 저장'}
+                    </button>
+                </form>
             </div>
 
             {/* 비밀번호 변경 */}
@@ -133,10 +194,10 @@ export default function ProfilePage() {
                     </div>
                     <button
                         type="submit"
-                        disabled={isSaving || !currentPassword || !newPassword || newPassword !== confirmPassword}
+                        disabled={isPasswordSaving || !currentPassword || !newPassword || newPassword !== confirmPassword}
                         className="w-full rounded-md bg-indigo-600 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                     >
-                        {isSaving ? '변경 중...' : '비밀번호 변경'}
+                        {isPasswordSaving ? '변경 중...' : '비밀번호 변경'}
                     </button>
                 </form>
             </div>

@@ -21,6 +21,7 @@ import InvestmentsPage from '@/pages/investments/InvestmentsPage';
 import PetCareLogPage from '@/pages/petcare/PetCareLogPage';
 import AllowancePage from '@/pages/allowance/AllowancePage';
 import ProfilePage from '@/pages/profile/ProfilePage';
+import ManualPage from '@/pages/settings/ManualPage';
 
 import { Toaster } from 'react-hot-toast';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
@@ -111,6 +112,7 @@ function App() {
                             <Route path="petcare" element={<PetCareLogPage />} />
                             <Route path="allowance" element={<AllowancePage />} />
                             <Route path="profile" element={<ProfilePage />} />
+                            <Route path="manual" element={<ManualPage />} />
                             <Route path="*" element={<Navigate to="/" replace />} />
                         </Route>
                     )}

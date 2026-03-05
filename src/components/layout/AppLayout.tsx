@@ -36,6 +36,7 @@ export default function AppLayout() {
     // 설정 하위 메뉴 항목
     const settingsNavItems = [
         { name: '마이 프로필', path: '/profile' },
+        { name: '사용자 매뉴얼', path: '/manual' },
         { name: '계좌 관리', path: '/accounts' },
         { name: '분류 관리', path: '/categories' },
         { name: '월 마감', path: '/closing' },
