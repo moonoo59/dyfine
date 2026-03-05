@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useHoldings, useRecordTrade, useUpdateSecurityPrices } from '@/hooks/queries/useInvestments';
 import { useAccounts } from '@/hooks/queries/useAccounts';
 import { useCategories } from '@/hooks/queries/useCategories';
-import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import CurrencyInput from '@/components/ui/CurrencyInput';
 
@@ -47,7 +46,7 @@ export default function InvestmentsPage() {
         const initialPrices: Record<number, number> = {};
         if (holdings) {
             holdings.forEach(h => {
-                initialPrices[h.security.id] = h.security.last_price || 0;
+                initialPrices[h.security.id] = h.last_price || 0;
             });
         }
         setUpdatedPrices(initialPrices);
@@ -272,7 +271,7 @@ export default function InvestmentsPage() {
                                         className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
                                     >
                                         <option value="">계좌 선택</option>
-                                        {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                                        {accounts.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
                                     </select>
                                 </div>
                                 <div>
@@ -283,7 +282,7 @@ export default function InvestmentsPage() {
                                         className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
                                     >
                                         <option value="">선택 안 함</option>
-                                        {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        {categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                                     </select>
                                 </div>
                             </div>
@@ -343,7 +342,7 @@ export default function InvestmentsPage() {
                                         <div className="w-1/2">
                                             <CurrencyInput
                                                 value={updatedPrices[h.security.id] || 0}
-                                                onChange={(val) => setUpdatedPrices(prev => ({ ...prev, [h.security.id]: val }))}
+                                                onChange={(val) => setUpdatedPrices((prev: Record<number, number>) => ({ ...prev, [h.security.id]: val }))}
                                                 className="block w-full rounded-md border border-gray-300 py-1 pr-8 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
                                             />
                                         </div>
