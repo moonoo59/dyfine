@@ -52,6 +52,13 @@ export default function CategoriesPage() {
     const [deletingCategory, setDeletingCategory] = useState<any | null>(null);
     // 기본 세트 적용 확인
     const [isApplyConfirmOpen, setIsApplyConfirmOpen] = useState(false);
+    // 수입/지출 탭 상태
+    const [activeTab, setActiveTab] = useState<'expense' | 'income'>('expense');
+
+    // 탭별 대분류 필터링
+    const filteredL1 = l1Categories.filter(c =>
+        c.category_type === activeTab || c.category_type === 'both'
+    );
 
     /**
      * 기본 카테고리 세트 일괄 적용
@@ -224,12 +231,36 @@ export default function CategoriesPage() {
                 </div>
             </div>
 
+            {/* 수입/지출 탭 */}
+            <div className="flex space-x-1 rounded-xl bg-gray-100 p-1 dark:bg-zinc-900">
+                <button
+                    onClick={() => setActiveTab('expense')}
+                    className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === 'expense'
+                        ? 'bg-white text-gray-900 shadow-sm dark:bg-zinc-800 dark:text-white'
+                        : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                        }`}
+                >
+                    지출 카테고리
+                </button>
+                <button
+                    onClick={() => setActiveTab('income')}
+                    className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === 'income'
+                        ? 'bg-white text-gray-900 shadow-sm dark:bg-zinc-800 dark:text-white'
+                        : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                        }`}
+                >
+                    수입 카테고리
+                </button>
+            </div>
+
             <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden dark:border-zinc-800 dark:bg-zinc-950">
                 <ul role="list" className="divide-y divide-gray-200 dark:divide-zinc-800">
-                    {l1Categories.length === 0 ? (
-                        <li className="p-8 text-center text-sm text-gray-500">등록된 카테고리가 없습니다.</li>
+                    {filteredL1.length === 0 ? (
+                        <li className="p-8 text-center text-sm text-gray-500">
+                            {activeTab === 'income' ? '등록된 수입 카테고리가 없습니다.' : '등록된 지출 카테고리가 없습니다.'}
+                        </li>
                     ) : (
-                        l1Categories.map(l1 => (
+                        filteredL1.map(l1 => (
                             <li key={l1.id} className="p-4 hover:bg-gray-50 dark:hover:bg-zinc-900/50">
                                 <div className="flex items-center justify-between mb-2">
                                     <div className="flex items-center space-x-2">

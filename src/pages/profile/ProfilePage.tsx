@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { supabase } from '@/lib/supabase/client';
 import { toast } from 'react-hot-toast';
@@ -6,74 +6,56 @@ import { toast } from 'react-hot-toast';
 /**
  * 마이 프로필 페이지
  *
- * [Designer] 사용자가 직접 표시 이름(display_name)을 설정할 수 있는 페이지.
- * 비밀번호 확인 후 저장하는 보안 절차 포함.
+ * [Designer] 현재 계정 정보 확인 + 비밀번호 변경 기능
  */
 export default function ProfilePage() {
-    const { user, displayName, setDisplayName } = useAuthStore();
+    const { user, displayName } = useAuthStore();
 
-    // 폼 상태
-    const [newDisplayName, setNewDisplayName] = useState('');
-    const [password, setPassword] = useState('');
+    // 비밀번호 변경 폼 상태
+    const [currentPassword, setCurrentPassword] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
     const [isSaving, setIsSaving] = useState(false);
-    const [isVerified, setIsVerified] = useState(false);
 
-    // 현재 display_name으로 초기화
-    useEffect(() => {
-        setNewDisplayName(displayName || '');
-    }, [displayName]);
-
-    /** 비밀번호 확인 핸들러 */
-    const handleVerifyPassword = async (e: React.FormEvent) => {
+    /** 비밀번호 변경 핸들러 */
+    const handleChangePassword = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user?.email || !password) return;
+        if (!user?.email) return;
 
-        setIsSaving(true);
-        try {
-            // Supabase로 현재 비밀번호 검증 (재로그인 시도)
-            const { error } = await supabase.auth.signInWithPassword({
-                email: user.email,
-                password: password,
-            });
-
-            if (error) {
-                toast.error('비밀번호가 일치하지 않습니다.');
-                setIsVerified(false);
-            } else {
-                setIsVerified(true);
-                toast.success('본인 확인 완료');
-            }
-        } catch (err: any) {
-            toast.error('확인 실패: ' + err.message);
-        } finally {
-            setIsSaving(false);
+        // 유효성 검사
+        if (newPassword.length < 6) {
+            toast.error('새 비밀번호는 6자 이상이어야 합니다.');
+            return;
         }
-    };
-
-    /** 프로필 저장 핸들러 */
-    const handleSaveProfile = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!user || !newDisplayName.trim()) return;
+        if (newPassword !== confirmPassword) {
+            toast.error('새 비밀번호가 일치하지 않습니다.');
+            return;
+        }
 
         setIsSaving(true);
         try {
-            // profiles 테이블에 upsert
-            const { error } = await supabase
-                .from('profiles')
-                .upsert({
-                    user_id: user.id,
-                    display_name: newDisplayName.trim(),
-                }, { onConflict: 'user_id' });
+            // 1. 현재 비밀번호 확인 (재로그인)
+            const { error: verifyError } = await supabase.auth.signInWithPassword({
+                email: user.email,
+                password: currentPassword,
+            });
+            if (verifyError) {
+                toast.error('현재 비밀번호가 일치하지 않습니다.');
+                return;
+            }
 
-            if (error) throw error;
+            // 2. 새 비밀번호 설정
+            const { error: updateError } = await supabase.auth.updateUser({
+                password: newPassword,
+            });
+            if (updateError) throw updateError;
 
-            // authStore에 반영
-            setDisplayName(newDisplayName.trim());
-            toast.success('프로필이 저장되었습니다.');
-            setPassword('');
-            setIsVerified(false);
+            toast.success('비밀번호가 변경되었습니다.');
+            setCurrentPassword('');
+            setNewPassword('');
+            setConfirmPassword('');
         } catch (err: any) {
-            toast.error('저장 실패: ' + err.message);
+            toast.error('변경 실패: ' + err.message);
         } finally {
             setIsSaving(false);
         }
@@ -86,7 +68,7 @@ export default function ProfilePage() {
             <div>
                 <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">마이 프로필</h1>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                    표시 이름을 설정하면 용돈 관리 등 개인화 기능에 적용됩니다.
+                    계정 정보를 확인하고 비밀번호를 변경할 수 있습니다.
                 </p>
             </div>
 
@@ -107,73 +89,56 @@ export default function ProfilePage() {
                 </div>
             </div>
 
-            {/* 이름 변경 폼 */}
+            {/* 비밀번호 변경 */}
             <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">표시 이름 변경</h3>
-
-                {/* Step 1: 비밀번호 확인 */}
-                {!isVerified ? (
-                    <form onSubmit={handleVerifyPassword} className="space-y-4">
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                            프로필 변경을 위해 먼저 비밀번호를 확인해주세요.
-                        </p>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">비밀번호</label>
-                            <input
-                                type="password"
-                                required
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
-                                placeholder="현재 비밀번호 입력"
-                            />
-                        </div>
-                        <button
-                            type="submit"
-                            disabled={isSaving || !password}
-                            className="w-full rounded-md bg-indigo-600 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                        >
-                            {isSaving ? '확인 중...' : '본인 확인'}
-                        </button>
-                    </form>
-                ) : (
-                    /* Step 2: 이름 입력 */
-                    <form onSubmit={handleSaveProfile} className="space-y-4">
-                        <div className="flex items-center gap-2 rounded-md bg-green-50 p-2 text-xs text-green-700 dark:bg-green-900/20 dark:text-green-400">
-                            <span>✅</span>
-                            <span>본인 확인 완료</span>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">표시 이름</label>
-                            <input
-                                type="text"
-                                required
-                                value={newDisplayName}
-                                onChange={(e) => setNewDisplayName(e.target.value)}
-                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
-                                placeholder="예) 덕원"
-                                maxLength={20}
-                            />
-                            <p className="mt-1 text-xs text-gray-400">용돈 관리, 거래 입력자 표시 등에 사용됩니다.</p>
-                        </div>
-                        <div className="flex gap-3">
-                            <button
-                                type="button"
-                                onClick={() => { setIsVerified(false); setPassword(''); }}
-                                className="flex-1 rounded-md border border-gray-300 py-2 text-sm font-medium text-gray-700 dark:border-zinc-700 dark:text-gray-300"
-                            >
-                                취소
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={isSaving || !newDisplayName.trim()}
-                                className="flex-1 rounded-md bg-indigo-600 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                            >
-                                {isSaving ? '저장 중...' : '저장'}
-                            </button>
-                        </div>
-                    </form>
-                )}
+                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">비밀번호 변경</h3>
+                <form onSubmit={handleChangePassword} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">현재 비밀번호</label>
+                        <input
+                            type="password"
+                            required
+                            value={currentPassword}
+                            onChange={(e) => setCurrentPassword(e.target.value)}
+                            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                            placeholder="현재 비밀번호"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">새 비밀번호</label>
+                        <input
+                            type="password"
+                            required
+                            minLength={6}
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                            placeholder="새 비밀번호 (6자 이상)"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">새 비밀번호 확인</label>
+                        <input
+                            type="password"
+                            required
+                            minLength={6}
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                            placeholder="새 비밀번호 다시 입력"
+                        />
+                        {confirmPassword && newPassword !== confirmPassword && (
+                            <p className="mt-1 text-xs text-red-500">비밀번호가 일치하지 않습니다.</p>
+                        )}
+                    </div>
+                    <button
+                        type="submit"
+                        disabled={isSaving || !currentPassword || !newPassword || newPassword !== confirmPassword}
+                        className="w-full rounded-md bg-indigo-600 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                        {isSaving ? '변경 중...' : '비밀번호 변경'}
+                    </button>
+                </form>
             </div>
         </div>
     );

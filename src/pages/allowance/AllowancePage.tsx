@@ -1,8 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import {
-    useMyAllowances,
-    useUpsertAllowance,
+    useAllowanceBudgetFromTransactions,
     useMyFixedExpenses,
     useUpsertFixedExpense,
     useDeleteFixedExpense,
@@ -19,9 +18,10 @@ const EXPENSE_CATEGORIES = ['구독', '보험', '통신', '교통', '저축', '�
 /**
  * 개인 용돈 관리 페이지
  *
- * [PM] 계정 연동: 각 사용자는 본인의 용돈만 조회/관리 가능
- * - RLS(owner_user_id = auth.uid())로 상대방 데이터는 아예 조회 불가
- * - profiles.display_name을 자동으로 member_name으로 사용
+ * [PM] 거래 내역 자동 연동 방식:
+ * - 예산: 거래 내역에서 "덕원 용돈"/"여선 용돈" 카테고리 합계에서 자동 조회
+ * - 고정지출: 구독료, 보험료 등 수동 관리
+ * - 잔액: 거래 용돈 합계 – 고정지출 합계
  */
 export default function AllowancePage() {
     const { user, displayName } = useAuthStore();
@@ -35,18 +35,14 @@ export default function AllowancePage() {
         `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
     );
 
-    // React Query 데이터 — RLS가 자동으로 본인 데이터만 반환
-    const { data: allowances, isLoading: allowanceLoading } = useMyAllowances();
+    // 거래 내역에서 용돈 예산 자동 조회
+    const { data: budgetData, isLoading: budgetLoading } = useAllowanceBudgetFromTransactions(memberName, selectedYearMonth);
+    const budgetAmount = budgetData?.total || 0;
+
+    // 고정지출 목록
     const { data: fixedExpenses, isLoading: expenseLoading } = useMyFixedExpenses();
-    const upsertAllowance = useUpsertAllowance();
     const upsertFixedExpense = useUpsertFixedExpense();
     const deleteFixedExpense = useDeleteFixedExpense();
-
-    // 현재 선택 월의 용돈 예산
-    const currentAllowance = useMemo(
-        () => allowances?.find(a => a.year_month === selectedYearMonth),
-        [allowances, selectedYearMonth]
-    );
 
     // 활성 고정지출만 필터
     const activeExpenses = useMemo(
@@ -60,31 +56,8 @@ export default function AllowancePage() {
         [activeExpenses]
     );
 
-    // 잔액 (용돈 예산 - 고정지출 합계)
-    const remaining = (currentAllowance?.budget_amount || 0) - totalFixedExpense;
-
-    // ─── 용돈 예산 설정 모달 ───
-    const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
-    const [budgetAmount, setBudgetAmount] = useState<number>(0);
-    const [budgetMemo, setBudgetMemo] = useState('');
-
-    const openBudgetModal = () => {
-        setBudgetAmount(currentAllowance?.budget_amount || 0);
-        setBudgetMemo(currentAllowance?.memo || '');
-        setIsBudgetModalOpen(true);
-    };
-
-    const handleSaveBudget = (e: React.FormEvent) => {
-        e.preventDefault();
-        upsertAllowance.mutate({
-            member_name: memberName,
-            year_month: selectedYearMonth,
-            budget_amount: budgetAmount,
-            memo: budgetMemo,
-        }, {
-            onSuccess: () => setIsBudgetModalOpen(false),
-        });
-    };
+    // 잔액 (용돈 - 고정지출)
+    const remaining = budgetAmount - totalFixedExpense;
 
     // ─── 고정지출 추가/수정 모달 ───
     const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
@@ -151,7 +124,7 @@ export default function AllowancePage() {
 
     if (!user) return <div className="p-8 text-center">로그인이 필요합니다.</div>;
 
-    const isLoading = allowanceLoading || expenseLoading;
+    const isLoading = budgetLoading || expenseLoading;
 
     return (
         <div className="space-y-6">
@@ -162,7 +135,7 @@ export default function AllowancePage() {
                         {memberName}의 용돈 관리
                     </h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                        월 용돈 예산과 고정지출을 관리합니다. 본인만 조회 가능합니다.
+                        거래 내역의 "{memberName} 용돈" 카테고리에서 자동 연동됩니다.
                     </p>
                 </div>
                 {/* 월 선택 */}
@@ -187,17 +160,16 @@ export default function AllowancePage() {
                 <>
                     {/* 용돈 요약 카드 3종 */}
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                        {/* 이번 달 용돈 */}
-                        <button
-                            onClick={openBudgetModal}
-                            className="rounded-xl border border-gray-200 bg-white p-5 text-left shadow-sm transition hover:border-indigo-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-indigo-700"
-                        >
-                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{selectedYearMonth} 용돈 예산</p>
+                        {/* 이번 달 용돈 (거래 연동) */}
+                        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{selectedYearMonth} 용돈</p>
                             <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">
-                                ₩{(currentAllowance?.budget_amount || 0).toLocaleString()}
+                                ₩{budgetAmount.toLocaleString()}
                             </p>
-                            <p className="mt-1 text-xs text-indigo-500 dark:text-indigo-400">클릭하여 설정 →</p>
-                        </button>
+                            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                                {budgetData?.transactions.length || 0}건 거래에서 자동 집계
+                            </p>
+                        </div>
 
                         {/* 고정지출 합계 */}
                         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
@@ -220,7 +192,7 @@ export default function AllowancePage() {
                                 ₩{remaining.toLocaleString()}
                             </p>
                             <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                                예산 - 고정지출
+                                용돈 - 고정지출
                             </p>
                         </div>
                     </div>
@@ -287,75 +259,35 @@ export default function AllowancePage() {
                         )}
                     </div>
 
-                    {/* 월별 용돈 히스토리 */}
-                    {allowances && allowances.length > 0 && (
+                    {/* 거래 내역 상세 */}
+                    {budgetData && budgetData.transactions.length > 0 && (
                         <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden dark:border-zinc-800 dark:bg-zinc-950">
                             <div className="border-b border-gray-200 bg-gray-50 px-6 py-3 dark:border-zinc-800 dark:bg-zinc-900/50">
                                 <h3 className="text-base font-semibold text-gray-900 dark:text-white">
-                                    월별 용돈 이력
+                                    연동된 용돈 거래 내역
                                 </h3>
                             </div>
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full text-sm">
-                                    <thead className="bg-gray-50 dark:bg-zinc-900">
-                                        <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">월</th>
-                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500">예산</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">메모</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-200 dark:divide-zinc-800">
-                                        {allowances.map(a => (
-                                            <tr key={a.id} className={`hover:bg-gray-50 dark:hover:bg-zinc-900/50 ${a.year_month === selectedYearMonth ? 'bg-indigo-50/50 dark:bg-indigo-900/10' : ''}`}>
-                                                <td className="px-6 py-3 text-gray-700 dark:text-gray-300">{a.year_month}</td>
-                                                <td className="px-6 py-3 text-right font-semibold text-gray-900 dark:text-white">
-                                                    ₩{a.budget_amount.toLocaleString()}
-                                                </td>
-                                                <td className="px-6 py-3 text-gray-500 dark:text-gray-400">{a.memo || '-'}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                            <ul className="divide-y divide-gray-200 dark:divide-zinc-800">
+                                {budgetData.transactions.map((tx: any) => (
+                                    <li key={tx.id} className="flex items-center justify-between p-4">
+                                        <div>
+                                            <span className="text-sm text-gray-900 dark:text-white">
+                                                {tx.description || tx.category?.name || '거래'}
+                                            </span>
+                                            <span className="ml-2 text-xs text-gray-400">
+                                                {new Date(tx.occurred_at).toLocaleDateString('ko-KR')}
+                                            </span>
+                                        </div>
+                                        <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                                            ₩{Math.abs(tx.amount || 0).toLocaleString()}
+                                        </span>
+                                    </li>
+                                ))}
+                            </ul>
                         </div>
                     )}
                 </>
             )}
-
-            {/* 용돈 예산 설정 모달 */}
-            <Modal
-                isOpen={isBudgetModalOpen}
-                onClose={() => setIsBudgetModalOpen(false)}
-                title={`${selectedYearMonth} 용돈 예산 설정`}
-            >
-                <form onSubmit={handleSaveBudget} className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">월 용돈 예산</label>
-                        <CurrencyInput
-                            value={budgetAmount}
-                            onChange={setBudgetAmount}
-                            required
-                            className="mt-1 block w-full rounded-md border border-gray-300 py-2 pr-3 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">메모 (선택)</label>
-                        <input
-                            type="text"
-                            value={budgetMemo}
-                            onChange={(e) => setBudgetMemo(e.target.value)}
-                            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
-                            placeholder="예) 3월 인상분 반영"
-                        />
-                    </div>
-                    <div className="mt-6 flex justify-end space-x-3">
-                        <button type="button" onClick={() => setIsBudgetModalOpen(false)}
-                            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 dark:bg-zinc-800 dark:border-zinc-700 dark:text-gray-300">취소</button>
-                        <button type="submit"
-                            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">저장</button>
-                    </div>
-                </form>
-            </Modal>
 
             {/* 고정지출 추가/수정 모달 */}
             <Modal

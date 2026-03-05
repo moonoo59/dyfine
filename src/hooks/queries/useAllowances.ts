@@ -3,18 +3,6 @@ import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { toast } from 'react-hot-toast';
 
-/** 월 용돈 예산 인터페이스 */
-export interface PersonalAllowance {
-    id: number;
-    household_id: string;
-    member_name: string;
-    year_month: string;
-    budget_amount: number;
-    memo: string | null;
-    owner_user_id: string | null;
-    created_at: string;
-}
-
 /** 개인 고정지출 항목 인터페이스 */
 export interface FixedExpense {
     id: number;
@@ -30,70 +18,57 @@ export interface FixedExpense {
 }
 
 /**
- * 내 용돈 예산 조회 훅
- * RLS가 owner_user_id = auth.uid() 로 필터링하므로 본인 데이터만 반환됨
+ * 거래 내역에서 용돈 예산 자동 조회 훅
+ *
+ * [PM] 거래 내역의 카테고리명에 구성원 이름이 포함된 '용돈' 거래를 합산
+ * 예: "덕원 용돈" 카테고리 → 덕원의 해당 월 용돈 예산으로 자동 반영
+ *
+ * @param memberName 구성원 이름 (profiles.display_name)
+ * @param yearMonth  조회 월 ('2026-03')
  */
-export function useMyAllowances() {
+export function useAllowanceBudgetFromTransactions(memberName: string, yearMonth: string) {
     const { householdId } = useAuthStore();
 
-    return useQuery<PersonalAllowance[]>({
-        queryKey: ['allowances', householdId],
+    return useQuery<{ total: number; transactions: any[] }>({
+        queryKey: ['allowanceBudget', householdId, memberName, yearMonth],
         queryFn: async () => {
-            if (!householdId) throw new Error('No household ID');
+            if (!householdId || !memberName) throw new Error('Missing params');
 
-            // RLS가 자동으로 본인 데이터만 필터링
+            // 해당 월의 시작일/종료일 계산
+            const startDate = `${yearMonth}-01`;
+            const [y, m] = yearMonth.split('-').map(Number);
+            const endDate = new Date(y, m, 0).toISOString().slice(0, 10); // 말일
+
+            // 카테고리명에 "용돈"이 포함되고, 구성원 이름도 포함된 거래를 조회
+            // 예: "덕원 용돈", "여선 용돈"
             const { data, error } = await supabase
-                .from('personal_allowances')
-                .select('*')
+                .from('transaction_entries')
+                .select(`
+                    id, occurred_at, amount, description, entry_type,
+                    category:categories(id, name)
+                `)
                 .eq('household_id', householdId)
-                .order('year_month', { ascending: false })
-                .limit(12);
+                .gte('occurred_at', startDate)
+                .lte('occurred_at', endDate + 'T23:59:59')
+                .not('category_id', 'is', null);
 
             if (error) throw error;
-            return data as PersonalAllowance[];
-        },
-        enabled: !!householdId,
-    });
-}
 
-/**
- * 월 용돈 예산 생성/수정 (upsert) 훅
- * owner_user_id를 자동으로 현재 사용자로 설정
- */
-export function useUpsertAllowance() {
-    const { user, householdId } = useAuthStore();
-    const queryClient = useQueryClient();
+            // 카테고리명에 구성원 이름 + "용돈"이 포함된 거래만 필터링
+            const allowanceTxns = (data || []).filter((tx: any) => {
+                const catName = tx.category?.name || '';
+                return catName.includes('용돈') && catName.includes(memberName);
+            });
 
-    return useMutation({
-        mutationFn: async (params: {
-            member_name: string;
-            year_month: string;
-            budget_amount: number;
-            memo?: string;
-        }) => {
-            if (!householdId || !user) throw new Error('No household or user');
+            // 금액 합산 (입금/이체 등 양수 금액 합)
+            const total = allowanceTxns.reduce((sum: number, tx: any) => {
+                // amount가 양수이면 용돈 수령, 음수이면 용돈 지급
+                return sum + Math.abs(tx.amount || 0);
+            }, 0);
 
-            const { error } = await supabase
-                .from('personal_allowances')
-                .upsert({
-                    household_id: householdId,
-                    member_name: params.member_name,
-                    year_month: params.year_month,
-                    budget_amount: params.budget_amount,
-                    memo: params.memo || null,
-                    owner_user_id: user.id,
-                    created_by: user.id,
-                }, { onConflict: 'household_id,member_name,year_month' });
-
-            if (error) throw error;
+            return { total, transactions: allowanceTxns };
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['allowances', householdId] });
-            toast.success('용돈 예산이 저장되었습니다.');
-        },
-        onError: (error: any) => {
-            toast.error('저장 실패: ' + (error.message || '알 수 없는 오류'));
-        },
+        enabled: !!householdId && !!memberName && !!yearMonth,
     });
 }
 
@@ -124,7 +99,6 @@ export function useMyFixedExpenses() {
 
 /**
  * 고정지출 추가/수정 훅
- * owner_user_id를 자동으로 현재 사용자로 설정
  */
 export function useUpsertFixedExpense() {
     const { user, householdId } = useAuthStore();
