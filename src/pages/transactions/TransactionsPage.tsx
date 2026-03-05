@@ -9,6 +9,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import FilterBar, { type FilterValues, getDefaultFilterValues } from '@/components/ui/FilterBar';
 import CurrencyInput from '@/components/ui/CurrencyInput';
 import { toast } from 'react-hot-toast';
+import ConfirmModal from '@/components/ui/ConfirmModal';
+import { SkeletonListItem } from '@/components/ui/Skeleton';
 
 /** 카테고리 인터페이스 (다른 파일에서도 import) */
 export interface Category {
@@ -120,6 +122,10 @@ export default function TransactionsPage() {
     const [categoryId, setCategoryId] = useState<number | ''>('');
     const [selectedL1, setSelectedL1] = useState<number | ''>('');
     const [newTags, setNewTags] = useState('');
+    // 수정 모드: 수정 중인 전표 (null이면 신규 추가 모드)
+    const [editingEntry, setEditingEntry] = useState<TransactionEntry | null>(null);
+    // 삭제 확인 모달 상태
+    const [deletingEntryId, setDeletingEntryId] = useState<number | null>(null);
 
     // L1/L2 카테고리 분리
     const l1Categories = useMemo(() => categories.filter(c => c.parent_id === null), [categories]);
@@ -186,6 +192,50 @@ export default function TransactionsPage() {
         setCategoryId('');
         setSelectedL1('');
         setNewTags('');
+    };
+
+    /** 수정 모드: 전표 클릭 시 폼에 기존 데이터 로드 */
+    const handleOpenEdit = (entry: TransactionEntry) => {
+        setEditingEntry(entry);
+        setNewDate(entry.occurred_at.split('T')[0]);
+        setNewType(entry.entry_type === 'adjustment' ? 'expense' : entry.entry_type as 'expense' | 'income' | 'transfer');
+        setNewMemo(entry.memo || '');
+        // 계좌 정보: 출금(음수라인) / 입금(양수라인)
+        const fromLine = entry.lines.find(l => l.amount < 0);
+        const toLine = entry.lines.find(l => l.amount > 0);
+        setFromAccountId(fromLine?.account_id || '');
+        setToAccountId(toLine?.account_id || '');
+        setNewAmount(Math.abs(fromLine?.amount || toLine?.amount || 0));
+        setCategoryId(entry.category_id || '');
+        setSelectedL1(entry.category_id || '');
+        setNewTags(entry.tags?.map(t => t.tag.name).join(', ') || '');
+        setIsModalOpen(true);
+    };
+
+    /** 수정 저장 핸들러: 날짜/메모/카테고리만 업데이트 (금액·계좌는 복식 전표 구조상 별도 처리 필요) */
+    const handleEditSave = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingEntry) return handleQuickAdd(e); // 신규 추가 모드면 원래 핸들러 실행
+
+        const { error } = await supabase
+            .from('transaction_entries')
+            .update({
+                occurred_at: newDate,
+                memo: newMemo,
+                category_id: categoryId || null,
+            })
+            .eq('id', editingEntry.id)
+            .eq('is_locked', false); // 잠금 전표는 수정 불가
+
+        if (error) {
+            toast.error('수정 실패: ' + error.message);
+            return;
+        }
+        toast.success('거래가 수정되었습니다.');
+        setIsModalOpen(false);
+        setEditingEntry(null);
+        resetForm();
+        queryClient.invalidateQueries({ queryKey: ['transactions', householdId] });
     };
 
     /** 즐겨찾기에서 폼 불러오기 */
@@ -325,7 +375,7 @@ export default function TransactionsPage() {
             {activeTab !== 'favorites' && (
                 <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden dark:border-zinc-800 dark:bg-zinc-950">
                     {isLoading ? (
-                        <div className="p-8 text-center text-gray-500">데이터를 불러오는 중...</div>
+                        <div className="divide-y divide-gray-200 dark:divide-zinc-800">{[...Array(5)].map((_, i) => <SkeletonListItem key={i} />)}</div>
                     ) : entries.length === 0 ? (
                         <div className="p-8 text-center text-sm text-gray-500 dark:text-gray-400">
                             {activeTab === 'inbox' ? '미분류 거래가 없습니다. 🎉' : '조건에 맞는 거래가 없습니다.'}
@@ -375,19 +425,20 @@ export default function TransactionsPage() {
                                                 </div>
                                             ))}
                                             {!entry.is_locked && (
-                                                <button
-                                                    onClick={() => {
-                                                        if (confirm('이 거래를 삭제하시겠습니까?')) {
-                                                            deleteTransaction(entry.id).then(({ error }) => {
-                                                                if (error) toast.error('삭제 실패: ' + error.message);
-                                                                else toast.success('삭제되었습니다.');
-                                                            });
-                                                        }
-                                                    }}
-                                                    className="text-xs text-red-500 hover:text-red-700 mt-2 text-right"
-                                                >
-                                                    삭제
-                                                </button>
+                                                <div className="flex gap-2 mt-2 justify-end">
+                                                    <button
+                                                        onClick={() => handleOpenEdit(entry)}
+                                                        className="text-xs text-indigo-500 hover:text-indigo-700 dark:text-indigo-400"
+                                                    >
+                                                        수정
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setDeletingEntryId(entry.id)}
+                                                        className="text-xs text-red-500 hover:text-red-700"
+                                                    >
+                                                        삭제
+                                                    </button>
+                                                </div>
                                             )}
                                         </div>
                                     </div>
@@ -398,12 +449,15 @@ export default function TransactionsPage() {
                 </div>
             )}
 
-            {/* Quick Add Modal */}
+            {/* Quick Add / 수정 모달 */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
                     <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-zinc-900 max-h-[90vh] overflow-y-auto">
-                        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">빠른 추가</h2>
-                        <form onSubmit={handleQuickAdd} className="space-y-4">
+                        <div className="mb-4 flex items-center justify-between">
+                            <h2 className="text-lg font-bold text-gray-900 dark:text-white">{editingEntry ? '거래 수정' : '빠른 추가'}</h2>
+                            <button onClick={() => { setIsModalOpen(false); setEditingEntry(null); resetForm(); }} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">✕</button>
+                        </div>
+                        <form onSubmit={editingEntry ? handleEditSave : handleQuickAdd} className="space-y-4">
                             {/* 유형 선택 탭 */}
                             <div className="flex space-x-4">
                                 {(['expense', 'income', 'transfer'] as const).map(t => (
@@ -508,6 +562,23 @@ export default function TransactionsPage() {
                     </div>
                 </div>
             )}
+            {/* 삭제 확인 모달 */}
+            <ConfirmModal
+                isOpen={deletingEntryId !== null}
+                onConfirm={() => {
+                    if (deletingEntryId === null) return;
+                    deleteTransaction(deletingEntryId).then(({ error }) => {
+                        if (error) toast.error('삭제 실패: ' + error.message);
+                        else toast.success('삭제되었습니다.');
+                    });
+                    setDeletingEntryId(null);
+                }}
+                onCancel={() => setDeletingEntryId(null)}
+                title="거래 삭제 확인"
+                message="이 거래를 삭제하시겠습니까? 삭제된 거래는 복구할 수 없습니다."
+                confirmLabel="삭제"
+                confirmVariant="danger"
+            />
         </div>
     );
 }

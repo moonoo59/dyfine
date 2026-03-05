@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { usePetCareLogs, useUpsertPetCareLog, useDeletePetCareLog } from '@/hooks/queries/usePetCare';
+import ConfirmModal from '@/components/ui/ConfirmModal';
+import { SkeletonListItem } from '@/components/ui/Skeleton';
 
 export default function PetCareLogPage() {
     const { user } = useAuthStore();
@@ -14,6 +16,8 @@ export default function PetCareLogPage() {
     const [manualCheckIn, setManualCheckIn] = useState('');
     const [manualCheckOut, setManualCheckOut] = useState('');
     const [manualMemo, setManualMemo] = useState('');
+    // 삭제 확인 모달
+    const [deletingLogId, setDeletingLogId] = useState<number | null>(null);
 
     // 자동 시간 계산 및 저장 (간편 체크인)
     const handleCheckIn = () => {
@@ -71,8 +75,13 @@ export default function PetCareLogPage() {
     };
 
     const handleDelete = (id: number) => {
-        if (confirm('정말로 이 기록을 삭제하시겠습니까?')) {
-            deleteLogMutation.mutate(id);
+        setDeletingLogId(id);
+    };
+
+    const confirmDelete = () => {
+        if (deletingLogId !== null) {
+            deleteLogMutation.mutate(deletingLogId);
+            setDeletingLogId(null);
         }
     };
 
@@ -85,7 +94,7 @@ export default function PetCareLogPage() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">오구장장 훈트가르텐</h1>
+                    <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">누리무무 훈트가르텐</h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400">입/퇴실 일시를 기록하고 요금을 자동 계산합니다.</p>
                 </div>
                 <button
@@ -134,7 +143,7 @@ export default function PetCareLogPage() {
                     <h3 className="text-base font-semibold text-gray-900 dark:text-white">이용 기록 목록</h3>
                 </div>
                 {isLoading ? (
-                    <div className="p-8 text-center text-gray-500">데이터를 불러오는 중...</div>
+                    <div className="p-4 space-y-1">{[...Array(4)].map((_, i) => <SkeletonListItem key={i} />)}</div>
                 ) : !logs || logs.length === 0 ? (
                     <div className="p-8 text-center text-sm text-gray-500 dark:text-gray-400">이용 기록이 없습니다.</div>
                 ) : (
@@ -212,6 +221,17 @@ export default function PetCareLogPage() {
                     </div>
                 </div>
             )}
+
+            {/* 삭제 확인 모달 */}
+            <ConfirmModal
+                isOpen={deletingLogId !== null}
+                onConfirm={confirmDelete}
+                onCancel={() => setDeletingLogId(null)}
+                title="기록 삭제"
+                message="정말로 이 이용 기록을 삭제하시겠습니까?"
+                confirmLabel="삭제"
+                confirmVariant="danger"
+            />
         </div>
     );
 }

@@ -8,6 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import CurrencyInput from '@/components/ui/CurrencyInput';
 import LoanSimulatorPanel from '@/components/loans/LoanSimulatorPanel';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 
 /**
  * 미래 월별 상환 스케줄 인터페이스
@@ -60,6 +61,8 @@ export default function LoansPage() {
     const [linkedAccountId, setLinkedAccountId] = useState<number | ''>('');
     const [bankName, setBankName] = useState('');
     const [repaymentPriority, setRepaymentPriority] = useState<number | ''>('');
+    // 삭제 확인 모달 상태
+    const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
 
     const openModalForNew = () => {
         setEditingLoan(null);
@@ -74,6 +77,7 @@ export default function LoansPage() {
         setLinkedAccountId('');
         setBankName('');
         setRepaymentPriority('');
+        setTermMonths(12);
         setIsModalOpen(true);
     };
 
@@ -247,8 +251,8 @@ export default function LoansPage() {
     };
 
     const handleDeleteLoan = async () => {
-        if (!selectedLoan || !confirm('이 대출을 삭제하면 모든 금리 이력과 원장도 함께 삭제됩니다. 정말 삭제하시겠습니까?')) return;
-
+        if (!selectedLoan) return;
+        setIsConfirmDeleteOpen(false);
         const { error } = await supabase.from('loans').delete().eq('id', selectedLoan.id);
         if (error) {
             toast.error('삭제 실패: ' + error.message);
@@ -320,7 +324,7 @@ export default function LoansPage() {
                                 </div>
                                 <div className="flex gap-2">
                                     <button onClick={openModalForEdit} className="rounded-md bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-400">수정</button>
-                                    <button onClick={handleDeleteLoan} className="rounded-md bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-700 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-400">삭제</button>
+                                    <button onClick={() => setIsConfirmDeleteOpen(true)} className="rounded-md bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-700 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-400">삭제</button>
                                 </div>
                             </div>
 
@@ -575,6 +579,17 @@ export default function LoansPage() {
                     </div>
                 </div>
             )}
+
+            {/* 삭제 확인 모달 */}
+            <ConfirmModal
+                isOpen={isConfirmDeleteOpen}
+                onConfirm={handleDeleteLoan}
+                onCancel={() => setIsConfirmDeleteOpen(false)}
+                title="대출 삭제 확인"
+                message={`'${selectedLoan?.name}' 대출을 삭제하면 모든 금리 이력과 원장도 함께 삭제됩니다. 정말 삭제하시겠습니까?`}
+                confirmLabel="삭제"
+                confirmVariant="danger"
+            />
         </div>
     );
 }
