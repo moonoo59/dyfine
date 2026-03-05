@@ -44,6 +44,30 @@ export function useBudgets(year: number, month: number) {
 
             if (tplError) throw tplError;
 
+            // 1.5. 오버라이드 데이터 조회 (선택한 연/월)
+            const yearMonthStr = `${year}-${String(month).padStart(2, '0')}`;
+            const { data: overrideData, error: overrideError } = await supabase
+                .from('budget_month_overrides')
+                .select('category_id, amount')
+                .eq('household_id', householdId)
+                .eq('year_month', yearMonthStr);
+
+            if (overrideError) throw overrideError;
+
+            // 오버라이드를 Map으로 변환
+            const overridesMap = new Map<number, number>();
+            if (overrideData) {
+                overrideData.forEach(o => overridesMap.set(o.category_id, o.amount));
+            }
+
+            // 템플릿 라인에 오버라이드 적용
+            const templatesWithOverrides = (tplData as unknown as BudgetTemplateLine[]).map(tpl => {
+                if (overridesMap.has(tpl.category_id)) {
+                    return { ...tpl, monthly_amount: overridesMap.get(tpl.category_id)! };
+                }
+                return tpl;
+            });
+
             // 2. 선택 월의 지출 실적 집계
             const startOfMonth = new Date(year, month - 1, 1).toISOString();
             const endOfMonth = new Date(year, month, 0, 23, 59, 59).toISOString();
@@ -73,7 +97,7 @@ export function useBudgets(year: number, month: number) {
             }
 
             return {
-                templates: (tplData as unknown as BudgetTemplateLine[]) || [],
+                templates: templatesWithOverrides || [],
                 performances,
             };
         },

@@ -38,6 +38,7 @@ export default function BudgetsPage() {
     const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
     const [selectedCategoryId, setSelectedCategoryId] = useState<number | ''>('');
     const [budgetAmount, setBudgetAmount] = useState<number>(0);
+    const [overrideMonth, setOverrideMonth] = useState<boolean>(false); // 이번 달만 적용 옵션
 
     // 월 변경 핸들러 (MonthPicker에서 호출)
     const handleMonthChange = (y: number, m: number) => {
@@ -58,12 +59,36 @@ export default function BudgetsPage() {
 
         if (editingTemplateId) {
             // 수정 모드
-            const { error } = await supabase
-                .from('budget_template_lines')
-                .update({ monthly_amount: budgetAmount })
-                .eq('id', editingTemplateId);
-            actionError = error;
-            if (error) { toast.error('수정 실패: ' + error.message); return; }
+            if (overrideMonth) {
+                // 특정 월 오버라이드 (Upsert)
+                const yearMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+                const { error } = await supabase
+                    .from('budget_month_overrides')
+                    .upsert({
+                        household_id: householdId,
+                        year_month: yearMonth,
+                        category_id: selectedCategoryId,
+                        amount: budgetAmount
+                    }, { onConflict: 'household_id,year_month,category_id' });
+                actionError = error;
+                if (error) { toast.error('이번 달 예산 덮어쓰기 실패: ' + error.message); return; }
+            } else {
+                // 기본 템플릿 수정
+                const { error } = await supabase
+                    .from('budget_template_lines')
+                    .update({ monthly_amount: budgetAmount })
+                    .eq('id', editingTemplateId);
+                actionError = error;
+                if (error) { toast.error('기본 예산 수정 실패: ' + error.message); return; }
+
+                // 해당 월의 오버라이드도 삭제 (오버라이드를 해제하고 기본으로 돌아가려는 의도일 수 있으므로)
+                const yearMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+                await supabase.from('budget_month_overrides')
+                    .delete()
+                    .eq('household_id', householdId)
+                    .eq('year_month', yearMonth)
+                    .eq('category_id', selectedCategoryId);
+            }
         } else {
             // 추가 모드: 기본 템플릿 확인 및 생성
             let templateId: number | null = null;
@@ -137,6 +162,7 @@ export default function BudgetsPage() {
                         setEditingTemplateId(null);
                         setSelectedCategoryId('');
                         setBudgetAmount(0);
+                        setOverrideMonth(false);
                         setIsModalOpen(true);
                     }}
                     className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700"
@@ -148,53 +174,75 @@ export default function BudgetsPage() {
             {/* 월 선택기 (공통 컴포넌트) */}
             <MonthPicker year={selectedYear} month={selectedMonth} onChange={handleMonthChange} />
 
-            {/* 예산 카드 그리드 */}
+            {/* 예산 표 (Table) */}
             {templates.length === 0 ? (
                 <div className="rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
                     <p className="text-sm text-gray-500 dark:text-gray-400">설정된 예산이 없습니다. 자주 지출하는 카테고리의 예산을 지정해 통제해보세요.</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                    {templates.map(tpl => {
-                        const currentSpend = performances[tpl.category_id] || 0;
-                        const progress = Math.min((currentSpend / tpl.monthly_amount) * 100, 100);
-                        const isOverBudget = currentSpend > tpl.monthly_amount;
+                <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-zinc-800 text-sm">
+                            <thead className="bg-gray-50 dark:bg-zinc-900/50">
+                                <tr>
+                                    <th className="px-6 py-3 text-left font-semibold text-gray-900 dark:text-gray-300">카테고리</th>
+                                    <th className="px-6 py-3 text-right font-semibold text-gray-900 dark:text-gray-300">목표 한도 (예산)</th>
+                                    <th className="px-6 py-3 text-right font-semibold text-gray-900 dark:text-gray-300">현재까지 지출액</th>
+                                    <th className="px-6 py-3 text-right font-semibold text-gray-900 dark:text-gray-300">잔여 금액</th>
+                                    <th className="px-6 py-3 text-left font-semibold text-gray-900 dark:text-gray-300 w-1/4">소진율</th>
+                                    <th className="px-4 py-3 text-center font-semibold text-gray-900 dark:text-gray-300">관리</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200 dark:divide-zinc-800">
+                                {templates.map(tpl => {
+                                    const currentSpend = performances[tpl.category_id] || 0;
+                                    const progress = Math.min((currentSpend / tpl.monthly_amount) * 100, 100);
+                                    const isOverBudget = currentSpend > tpl.monthly_amount;
+                                    const remaining = tpl.monthly_amount - currentSpend;
 
-                        return (
-                            <div key={tpl.id} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm flex flex-col justify-between dark:border-zinc-800 dark:bg-zinc-950">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div>
-                                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{tpl.category?.name || '알수없음'}</h3>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400">이번 달 예산</p>
-                                    </div>
-                                    <button onClick={() => openEditModal(tpl)} className="text-indigo-600 hover:text-indigo-500 text-sm font-medium">
-                                        수정
-                                    </button>
-                                </div>
-
-                                <div>
-                                    <div className="flex justify-between text-sm mb-1">
-                                        <span className={isOverBudget ? 'text-red-600 font-bold' : 'text-gray-900 dark:text-white'}>
-                                            {currentSpend.toLocaleString()} 원 지출
-                                        </span>
-                                        <span className="text-gray-500">/ {tpl.monthly_amount.toLocaleString()} 원</span>
-                                    </div>
-
-                                    {/* 프로그레스 바 */}
-                                    <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-zinc-800">
-                                        <div
-                                            className={`h-2.5 rounded-full ${isOverBudget ? 'bg-red-600' : progress > 80 ? 'bg-yellow-500' : 'bg-green-500'}`}
-                                            style={{ width: `${progress}%` }}
-                                        ></div>
-                                    </div>
-
-                                    {isOverBudget && (
-                                        <p className="mt-2 text-xs text-red-600 font-semibold text-right">예산을 초과했습니다!</p>
-                                    )}
-                                </div>
-                            </div>
-                        );
-                    })}
+                                    return (
+                                        <tr key={tpl.id} className="hover:bg-gray-50 dark:hover:bg-zinc-900 transition-colors">
+                                            <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900 dark:text-white">
+                                                {tpl.category?.name || '알수없음'}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right text-gray-700 dark:text-gray-300">
+                                                {tpl.monthly_amount.toLocaleString()} 원
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right font-medium">
+                                                <span className={isOverBudget ? 'text-red-600 dark:text-red-400 font-bold' : 'text-gray-900 dark:text-white'}>
+                                                    {currentSpend.toLocaleString()} 원
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right font-medium text-gray-700 dark:text-gray-300">
+                                                {remaining >= 0 ?
+                                                    <span className="text-green-600 dark:text-green-500">{remaining.toLocaleString()} 원</span> :
+                                                    <span className="text-red-600 dark:text-red-500 font-bold">{remaining.toLocaleString()} 원 초과</span>
+                                                }
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-zinc-800 flex-1">
+                                                        <div
+                                                            className={`h-2.5 rounded-full transition-all ${isOverBudget ? 'bg-red-600' : progress > 80 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                                                            style={{ width: `${progress}%` }}
+                                                        ></div>
+                                                    </div>
+                                                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 min-w-[3rem] text-right">
+                                                        {progress.toFixed(1)}%
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-center">
+                                                <button onClick={() => openEditModal(tpl)} className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 font-medium bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1.5 rounded-md hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors text-xs">
+                                                    수정
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
 
@@ -223,7 +271,7 @@ export default function BudgetsPage() {
 
                             {/* 예산 금액 입력 */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">월간 배정 예산</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">목표 한도 (예월 지출 한도)</label>
                                 <CurrencyInput
                                     value={budgetAmount}
                                     onChange={setBudgetAmount}
@@ -231,6 +279,23 @@ export default function BudgetsPage() {
                                     className="mt-1 block w-full rounded-md border border-gray-300 py-2 pr-3 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
                                 />
                             </div>
+
+                            {/* 특정 월 오버라이드 옵션 (수정 시에만 활성화) */}
+                            {editingTemplateId && (
+                                <div className="flex items-center gap-2 mt-4 p-3 rounded-lg bg-indigo-50 border border-indigo-100 dark:bg-indigo-900/20 dark:border-indigo-800">
+                                    <input
+                                        type="checkbox"
+                                        id="overrideMonth"
+                                        checked={overrideMonth}
+                                        onChange={e => setOverrideMonth(e.target.checked)}
+                                        className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:checked:bg-indigo-500"
+                                        title={`${selectedYear}년 ${selectedMonth}월에만 이 한도를 적용합니다`}
+                                    />
+                                    <label htmlFor="overrideMonth" className="text-sm font-medium text-gray-900 dark:text-gray-200">
+                                        이번 달({selectedYear}년 {selectedMonth}월)만 임시로 이 금액 적용하기
+                                    </label>
+                                </div>
+                            )}
 
                             {/* 버튼 영역 */}
                             <div className="mt-6 flex justify-end space-x-3">

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useHoldings, useRecordTrade, useUpdateSecurityPrices } from '@/hooks/queries/useInvestments';
 import { useAccounts } from '@/hooks/queries/useAccounts';
 import { useCategories } from '@/hooks/queries/useCategories';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import CurrencyInput from '@/components/ui/CurrencyInput';
 
@@ -9,6 +10,7 @@ import OverviewTab from '@/components/investments/OverviewTab';
 import ThemeTab from '@/components/investments/ThemeTab';
 import AccountTab from '@/components/investments/AccountTab';
 import TargetTab from '@/components/investments/TargetTab';
+import { fetchTickerPrice } from '@/lib/api/finance';
 
 /**
  * 투자 관리 탭 구조 통합 페이지 (v3.0)
@@ -42,13 +44,49 @@ export default function InvestmentsPage() {
     const [updatedPrices, setUpdatedPrices] = useState<Record<number, number>>({});
 
     const handleOpenPriceModal = () => {
-        if (!holdings) return;
         const initialPrices: Record<number, number> = {};
-        holdings.forEach(h => {
-            initialPrices[h.security.id] = h.last_price;
-        });
+        if (holdings) {
+            holdings.forEach(h => {
+                initialPrices[h.security.id] = h.security.last_price || 0;
+            });
+        }
         setUpdatedPrices(initialPrices);
         setIsPriceModalOpen(true);
+    };
+
+    // 현재가 일괄 갱신 API 호출
+    const [isFetchingPrices, setIsFetchingPrices] = useState(false);
+
+    const handleAutoFetchPrices = async () => {
+        if (!holdings || holdings.length === 0) return;
+
+        setIsFetchingPrices(true);
+        let successCount = 0;
+        let failCount = 0;
+
+        const newPrices = { ...updatedPrices };
+
+        for (const h of holdings) {
+            if (h.security.ticker) {
+                const currentPrice = await fetchTickerPrice(h.security.ticker);
+                if (currentPrice !== null && currentPrice > 0) {
+                    newPrices[h.security.id] = currentPrice;
+                    successCount++;
+                } else {
+                    failCount++;
+                }
+            }
+        }
+
+        setUpdatedPrices(newPrices);
+        setIsFetchingPrices(false);
+
+        if (successCount > 0) {
+            toast.success(`${successCount}개 종목의 최신 가격을 불러왔습니다.`);
+        }
+        if (failCount > 0) {
+            toast.error(`${failCount}개 종목의 가격을 불러오는 데 실패했습니다.`);
+        }
     };
 
     // ============================================
@@ -283,7 +321,17 @@ export default function InvestmentsPage() {
             {isPriceModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
                     <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-zinc-900">
-                        <h2 className="mb-4 text-lg font-bold text-gray-900 dark:text-white">현재가 일괄 갱신</h2>
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-lg font-bold text-gray-900 dark:text-white">현재가 일괄 갱신</h2>
+                            <button
+                                type="button"
+                                onClick={handleAutoFetchPrices}
+                                disabled={isFetchingPrices}
+                                className="rounded-md bg-indigo-100 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-200 disabled:opacity-50 dark:bg-indigo-900/40 dark:text-indigo-300 dark:hover:bg-indigo-900/60"
+                            >
+                                {isFetchingPrices ? '불러오는 중...' : '🌐 API 불러오기'}
+                            </button>
+                        </div>
                         <form onSubmit={handlePriceUpdateSubmit} className="space-y-4">
                             <div className="max-h-64 overflow-y-auto pr-2 space-y-4">
                                 {holdings?.map(h => (
