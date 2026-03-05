@@ -129,7 +129,7 @@ export default function InvestmentsPage() {
             </div>
 
             {/* 탭 헤더 */}
-            <div className="flex border-b border-gray-200 dark:border-zinc-800 space-x-6 px-1">
+            <div className="flex overflow-x-auto scrollbar-hide border-b border-gray-200 dark:border-zinc-800 space-x-6 px-1">
                 {[
                     { id: 'overview', label: '📊 전체 현황' },
                     { id: 'theme', label: '🚀 테마별 투자' },
@@ -140,8 +140,8 @@ export default function InvestmentsPage() {
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as 'overview' | 'theme' | 'account' | 'target')}
                         className={`whitespace-nowrap border-b-2 py-3 px-1 text-sm font-medium transition-colors ${activeTab === tab.id
-                                ? 'border-indigo-500 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
-                                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-zinc-700 dark:hover:text-gray-300'
+                            ? 'border-indigo-500 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                            : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-zinc-700 dark:hover:text-gray-300'
                             }`}
                     >
                         {tab.label}

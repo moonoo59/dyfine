@@ -219,8 +219,24 @@ export default function DashboardPage() {
                                 </div>
                             )}
 
-                            {pendingTransferCount === 0 && pendingLoanCount === 0 && (
+                            {pendingTransferCount === 0 && pendingLoanCount === 0 && (cashFlowForecast?.freeRouteSpace || 0) <= 0 && (
                                 <p className="text-sm text-green-600 dark:text-green-400">✅ 모든 작업이 완료되었습니다!</p>
+                            )}
+
+                            {/* 투자 리밸런싱 알림 (추가) */}
+                            {cashFlowForecast && cashFlowForecast.freeRouteSpace > 0 && (
+                                <div className="space-y-3 mt-3">
+                                    <div className="flex items-center justify-between p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/10">
+                                        <div className="flex items-center space-x-2">
+                                            <span className="text-emerald-600">🎯</span>
+                                            <span className="text-sm font-medium text-emerald-800 dark:text-emerald-300">투자가능 자금(FRS) 알림</span>
+                                        </div>
+                                        <a href="/investments" className="text-sm text-emerald-600 hover:text-emerald-500 dark:text-emerald-400 font-medium">
+                                            리밸런싱 가이드 보기 →
+                                        </a>
+                                    </div>
+                                    <p className="px-1 text-xs text-gray-500 dark:text-gray-400">이번 달 가용 자금 <span className="font-semibold text-emerald-600 dark:text-emerald-400">₩{cashFlowForecast.freeRouteSpace.toLocaleString()}</span>이 있습니다.</p>
+                                </div>
                             )}
                         </div>
                     </div>

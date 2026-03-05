@@ -63,7 +63,7 @@ export default function AppLayout() {
                                         <Link
                                             key={item.name}
                                             to={item.path}
-                                            className={`inline-flex items-center border-b-2 px-1 pt-1 text-sm font-medium ${isActive
+                                            className={`inline-flex items-center whitespace-nowrap border-b-2 px-1 pt-1 text-sm font-medium ${isActive
                                                 ? 'border-indigo-500 text-gray-900 dark:text-white'
                                                 : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
                                                 }`}
@@ -76,7 +76,7 @@ export default function AppLayout() {
                                 <div className="relative inline-flex items-center">
                                     <button
                                         onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                                        className={`inline-flex items-center border-b-2 px-1 pt-1 text-sm font-medium ${isSettingsActive
+                                        className={`inline-flex items-center whitespace-nowrap border-b-2 px-1 pt-1 text-sm font-medium ${isSettingsActive
                                             ? 'border-indigo-500 text-gray-900 dark:text-white'
                                             : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
                                             }`}
@@ -134,7 +134,7 @@ export default function AppLayout() {
                             </span>
                             <button
                                 onClick={handleLogout}
-                                className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-zinc-800 dark:text-white dark:ring-zinc-700 dark:hover:bg-zinc-700"
+                                className="whitespace-nowrap rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-zinc-800 dark:text-white dark:ring-zinc-700 dark:hover:bg-zinc-700"
                             >
                                 로그아웃
                             </button>
