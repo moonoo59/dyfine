@@ -156,6 +156,9 @@ export default function BudgetsPage() {
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">예산 관리</h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400">카테고리별 월간 예산을 설정하고 현재 지출 현황을 파악합니다.</p>
+                    <p className="mt-1 text-xs font-medium text-indigo-600 dark:text-indigo-400">
+                        💡 설정한 금액은 이번 달 목표로 삼는 지출 한도액을 의미하며, 실제 이체 내역과는 추적 방식이 다릅니다.
+                    </p>
                 </div>
                 <button
                     onClick={() => {

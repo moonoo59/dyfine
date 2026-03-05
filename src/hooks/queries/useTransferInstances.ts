@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-hot-toast';
 import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 
@@ -46,5 +47,38 @@ export function useTransferInstances() {
         },
         enabled: !!householdId,
         staleTime: 1000 * 60 * 1, // 1분 캐시 (실시간성 중요)
+    });
+}
+
+/**
+ * 자동이체 인스턴스 승인 뮤테이션
+ * - RPC confirm_auto_transfer 를 호출하여 상태를 confirmed 로 변경하고 전표생성
+ */
+export function useConfirmTransfer() {
+    const queryClient = useQueryClient();
+    const { user } = useAuthStore();
+
+    return useMutation({
+        mutationFn: async (instanceId: number) => {
+            if (!user) throw new Error('Not logged in');
+            const { data, error } = await supabase.rpc('confirm_auto_transfer', {
+                p_instance_id: instanceId,
+                p_user_id: user.id
+            });
+
+            if (error) throw error;
+            return data;
+        },
+        onSuccess: () => {
+            // 관련된 캐시 무효화
+            queryClient.invalidateQueries({ queryKey: ['transferInstances'] });
+            queryClient.invalidateQueries({ queryKey: ['transactions'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+            toast.success('자동이체가 승인되어 전표가 생성되었습니다.');
+        },
+        onError: (error: any) => {
+            console.error('Failed to confirm transfer:', error);
+            toast.error(error.message || '승인 처리 중 오류가 발생했습니다.');
+        }
     });
 }

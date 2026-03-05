@@ -287,6 +287,9 @@ export default function TransactionsPage() {
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">거래 내역</h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400">모든 수입, 지출, 이체 내역을 확인하고 추가합니다.</p>
+                    <p className="mt-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                        💡 등록된 내역은 실제 계좌 잔액에 즉각 반영되는 현금 흐름을 의미합니다.
+                    </p>
                 </div>
                 <button
                     onClick={() => { resetForm(); setIsModalOpen(true); }}
@@ -540,7 +543,13 @@ export default function TransactionsPage() {
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">메모 (선택)</label>
                                 <input type="text" value={newMemo} onChange={(e) => setNewMemo(e.target.value)}
-                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white" placeholder="설명 입력" />
+                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                                    placeholder={newType === 'transfer' ? "예: 생활비 이체, 아내 용돈 등" : "설명 입력"} />
+                                {newType === 'transfer' && (
+                                    <p className="mt-1 text-xs text-indigo-500 dark:text-indigo-400">
+                                        💡 용돈 배분 목적일 경우, 메모에 '용돈'이라고 기입하면 이체 내역에서 쉽게 검색할 수 있습니다.
+                                    </p>
+                                )}
                             </div>
 
                             {/* 태그 */}

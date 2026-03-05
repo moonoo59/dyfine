@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useAccounts } from '@/hooks/queries/useAccounts';
 import { useTransferRules } from '@/hooks/queries/useTransferRules';
-import { useTransferInstances } from '@/hooks/queries/useTransferInstances';
+import { useTransferInstances, useConfirmTransfer } from '@/hooks/queries/useTransferInstances';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 
@@ -21,6 +21,7 @@ export default function TransfersPage() {
     const { data: accountsData } = useAccounts();
     const { data: rulesData, isLoading: rulesLoading } = useTransferRules();
     const { data: instancesData, isLoading: instancesLoading } = useTransferInstances();
+    const { mutateAsync: confirmTransfer, isPending: isConfirming } = useConfirmTransfer();
 
     const accounts = accountsData || [];
     const rules = rulesData || [];
@@ -145,27 +146,36 @@ export default function TransfersPage() {
 
     /**
      * 자동이체 인스턴스 확인(Confirm) 핸들러
-     * - Supabase RPC(confirm_auto_transfer)로 원자성 보장
-     * - 전표 + 라인 + 상태 업데이트를 하나의 트랜잭션으로 처리
+     * - useConfirmTransfer mutation 사용
      */
     const confirmInstance = async (instanceId: number) => {
         if (!user) return;
+        await confirmTransfer(instanceId);
+    };
 
-        const { error: rpcError } = await supabase.rpc('confirm_auto_transfer', {
-            p_instance_id: instanceId,
-            p_user_id: user.id
-        });
+    /**
+     * 진행 대기중인 모든 자동이체 인스턴스 일괄 확인 핸들러
+     */
+    const confirmAllInstances = async () => {
+        if (!user || instances.length === 0) return;
+        if (!confirm(`대기 중인 ${instances.length}건의 이체를 모두 확정하시겠습니까?`)) return;
 
-        if (rpcError) {
-            toast.error('확인 처리 실패: ' + rpcError.message);
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const inst of instances) {
+            try {
+                await confirmTransfer(inst.id);
+                successCount++;
+            } catch (error) {
+                failCount++;
+            }
+        }
+
+        if (failCount > 0) {
+            toast.error(`${successCount}건 승인, ${failCount}건 실패`);
         } else {
-            // 관련 캐시 전체 무효화
-            toast.success('자동이체가 확인 되었습니다!');
-            queryClient.invalidateQueries({ queryKey: ['transferInstances', householdId] });
-            queryClient.invalidateQueries({ queryKey: ['transferRules', householdId] });
-            queryClient.invalidateQueries({ queryKey: ['transactions', householdId] });
-            queryClient.invalidateQueries({ queryKey: ['accounts', householdId] });
-            queryClient.invalidateQueries({ queryKey: ['dashboard', householdId] });
+            toast.success(`${successCount}건 모두 승인 완료되었습니다.`);
         }
     };
 
@@ -178,7 +188,18 @@ export default function TransfersPage() {
         <div className="space-y-8">
             {/* 1. 이체 확인 (Pending Instances) 영역 */}
             <div>
-                <h2 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white mb-4">확인 대기 중인 이체</h2>
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">확인 대기 중인 이체</h2>
+                    {instances.length > 0 && (
+                        <button
+                            onClick={confirmAllInstances}
+                            disabled={isConfirming}
+                            className="rounded-lg bg-rose-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-rose-700 disabled:opacity-50"
+                        >
+                            {isConfirming ? '승인 중...' : '전체 일괄 승인'}
+                        </button>
+                    )}
+                </div>
                 <div className="rounded-xl border border-rose-100 bg-rose-50/50 shadow-sm overflow-hidden dark:border-rose-900/30 dark:bg-rose-900/10">
                     {instances.length === 0 ? (
                         <p className="p-6 text-sm text-gray-500 dark:text-gray-400">현재 대기 중인 이체가 없습니다.</p>
@@ -198,7 +219,8 @@ export default function TransfersPage() {
                                         </span>
                                         <button
                                             onClick={() => confirmInstance(inst.id)}
-                                            className="rounded bg-rose-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-700"
+                                            disabled={isConfirming}
+                                            className="rounded bg-rose-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50"
                                         >
                                             장부 기록 확정
                                         </button>
