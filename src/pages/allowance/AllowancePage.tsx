@@ -11,6 +11,7 @@ import CurrencyInput from '@/components/ui/CurrencyInput';
 import Modal from '@/components/ui/Modal';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import { SkeletonListItem } from '@/components/ui/Skeleton';
+import AllowanceStatsTab from './AllowanceStatsTab';
 
 /** 고정지출 카테고리 옵션 */
 const EXPENSE_CATEGORIES = ['구독', '보험', '통신', '교통', '저축', '기타'] as const;
@@ -34,6 +35,9 @@ export default function AllowancePage() {
     const [selectedYearMonth, setSelectedYearMonth] = useState(
         `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
     );
+
+    // 탭 상태
+    const [activeTab, setActiveTab] = useState<'details' | 'stats'>('details');
 
     // 거래 내역에서 용돈 예산 자동 조회
     const { data: budgetData, isLoading: budgetLoading } = useAllowanceBudgetFromTransactions(memberName, selectedYearMonth);
@@ -138,16 +142,44 @@ export default function AllowancePage() {
                         거래 내역의 "{memberName} 용돈" 카테고리에서 자동 연동됩니다.
                     </p>
                 </div>
-                {/* 월 선택 */}
-                <input
-                    type="month"
-                    value={selectedYearMonth}
-                    onChange={(e) => setSelectedYearMonth(e.target.value)}
-                    className="rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
-                />
+                {/* 월 선택 (내역 탭에서만 보임) */}
+                {activeTab === 'details' && (
+                    <input
+                        type="month"
+                        value={selectedYearMonth}
+                        onChange={(e) => setSelectedYearMonth(e.target.value)}
+                        className="rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                    />
+                )}
             </div>
 
-            {isLoading ? (
+            {/* 탭 네비게이션 */}
+            <div className="border-b border-gray-200 dark:border-zinc-800">
+                <nav className="-mb-px flex space-x-6">
+                    <button
+                        onClick={() => setActiveTab('details')}
+                        className={`whitespace-nowrap border-b-2 py-3 px-1 text-sm font-medium ${activeTab === 'details'
+                                ? 'border-indigo-500 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                            }`}
+                    >
+                        용돈 장부
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('stats')}
+                        className={`whitespace-nowrap border-b-2 py-3 px-1 text-sm font-medium ${activeTab === 'stats'
+                                ? 'border-indigo-500 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                            }`}
+                    >
+                        시계열 통계
+                    </button>
+                </nav>
+            </div>
+
+            {activeTab === 'stats' ? (
+                <AllowanceStatsTab />
+            ) : isLoading ? (
                 <div className="space-y-4">
                     <div className="grid grid-cols-3 gap-4">
                         {[...Array(3)].map((_, i) => <div key={i} className="h-24 animate-pulse rounded-xl bg-gray-200 dark:bg-zinc-800" />)}

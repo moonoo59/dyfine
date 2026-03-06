@@ -178,3 +178,92 @@ export function useDeleteFixedExpense() {
         },
     });
 }
+
+/**
+ * 개인 용돈 통계 조회 훅
+ * 최근 N개월간의 해당 멤버 용돈 예산(지급액) 트렌드와 현재 고정지출을 비교
+ */
+export function useAllowanceStats(memberName: string, monthsCount: number = 6) {
+    const { householdId } = useAuthStore();
+
+    return useQuery<{
+        stats: { yearMonth: string, budget: number, fixedExpense: number, remaining: number }[],
+        monthlyAverages: { budget: number, remaining: number },
+        fixedTotal: number
+    }>({
+        queryKey: ['allowanceStats', householdId, memberName, monthsCount],
+        queryFn: async () => {
+            if (!householdId || !memberName) throw new Error('Missing params');
+
+            // 1. 활성 고정 지출 총합 조회 (현재 기준)
+            const { data: fixedData, error: fixedErr } = await supabase
+                .from('allowance_fixed_expenses')
+                .select('amount')
+                .eq('household_id', householdId)
+                .eq('is_active', true);
+            if (fixedErr) throw fixedErr;
+            const fixedTotal = (fixedData || []).reduce((sum, item) => sum + Number(item.amount), 0);
+
+            // 2. N개월 범위 설정
+            const now = new Date();
+            const months: string[] = [];
+            for (let i = monthsCount - 1; i >= 0; i--) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+            }
+
+            const startDate = new Date(now.getFullYear(), now.getMonth() - monthsCount + 1, 1).toISOString().split('T')[0];
+            const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+
+            // 3. 거래 내역 조회
+            const { data, error } = await supabase
+                .from('transaction_entries')
+                .select(`occurred_at, amount, category:categories(id, name)`)
+                .eq('household_id', householdId)
+                .gte('occurred_at', startDate)
+                .lte('occurred_at', endDate)
+                .not('category_id', 'is', null);
+
+            if (error) throw error;
+
+            // 구성원 이름과 '용돈'이 포함된 카테고리 거래만 추출
+            const allowanceTxns = (data || []).filter((tx: any) => {
+                const catName = tx.category?.name || '';
+                return catName.includes('용돈') && catName.includes(memberName);
+            });
+
+            // 4. 월별로 집계
+            const budgetByMonth: Record<string, number> = {};
+            months.forEach(m => budgetByMonth[m] = 0);
+
+            allowanceTxns.forEach((tx: any) => {
+                const tDate = new Date(tx.occurred_at);
+                const ym = `${tDate.getFullYear()}-${String(tDate.getMonth() + 1).padStart(2, '0')}`;
+                if (budgetByMonth[ym] !== undefined) {
+                    budgetByMonth[ym] += Math.abs(tx.amount || 0);
+                }
+            });
+
+            // 5. 최종 데이터 매핑
+            const stats = months.map(ym => {
+                const budget = budgetByMonth[ym];
+                return {
+                    yearMonth: ym.substring(2), // 26-03 포맷으로 단축
+                    budget,
+                    fixedExpense: fixedTotal, // 편의상 모든 과거 월에 현재 고정지출 일괄 적용
+                    remaining: budget - fixedTotal,
+                };
+            });
+
+            const avgBudget = stats.reduce((sum, s) => sum + s.budget, 0) / monthsCount;
+            const avgRemaining = stats.reduce((sum, s) => sum + s.remaining, 0) / monthsCount;
+
+            return {
+                stats,
+                monthlyAverages: { budget: avgBudget, remaining: avgRemaining },
+                fixedTotal
+            };
+        },
+        enabled: !!householdId && !!memberName,
+    });
+}
