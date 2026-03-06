@@ -190,6 +190,15 @@ export default function LoansPage() {
         const type = selectedLoan.repayment_type;
         const graceMonths = selectedLoan.grace_period_months || 0;
 
+        // 기준일(마지막 납입일 또는 시작일) 설정
+        let baseDate = new Date();
+        if (ledger && ledger.length > 0) {
+            const lastLedger = ledger[ledger.length - 1];
+            baseDate = new Date(lastLedger.posting_date);
+        } else if (selectedLoan.start_date) {
+            baseDate = new Date(selectedLoan.start_date);
+        }
+
         for (let m = 1; m <= remainingMonths && balance > 0; m++) {
             const interest = Math.round(balance * monthlyRate);
             let principalPayment = 0;
@@ -235,14 +244,14 @@ export default function LoansPage() {
 
             balance = Math.max(0, balance - principalPayment);
 
-            const d = new Date();
+            const d = new Date(baseDate);
             d.setMonth(d.getMonth() + m);
             const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
             rows.push({ month: m, date: dateStr, interest, principal: principalPayment, payment, balance });
         }
         return rows;
-    }, [selectedLoan, currentBalance, remainingMonths, currentRate]);
+    }, [selectedLoan, currentBalance, remainingMonths, currentRate, ledger]);
 
     /** 대출 생성/수정 핸들러 */
     const handleSaveLoan = async (e: React.FormEvent) => {

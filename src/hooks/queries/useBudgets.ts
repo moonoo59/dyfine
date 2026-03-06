@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 
@@ -9,6 +9,10 @@ export interface BudgetTemplateLine {
     category_id: number;
     monthly_amount: number;
     category?: { id: number; name: string; parent_id: number | null };
+    override_amount?: number; // 기간 설정으로 덮어써진 경우
+    override_id?: number;
+    start_year_month?: string;
+    end_year_month?: string;
 }
 
 /** 예산 데이터 (템플릿 라인 + 당월 실적) */
@@ -23,10 +27,6 @@ export interface BudgetData {
  * 예산 데이터를 React Query로 관리하는 커스텀 훅
  * - 예산 템플릿 라인 + 선택 월의 카테고리별 지출 실적을 한 번에 조회
  * - year/month 파라미터에 따라 쿼리 키가 달라져 월별 캐시 분리
- * - 5분 캐시 유지
- *
- * @param year  조회 연도 (예: 2026)
- * @param month 조회 월 (1~12)
  */
 export function useBudgets(year: number, month: number) {
     const { householdId } = useAuthStore();
@@ -36,7 +36,7 @@ export function useBudgets(year: number, month: number) {
         queryFn: async (): Promise<BudgetData> => {
             if (!householdId) throw new Error('No household ID');
 
-            // 1. 예산 템플릿 라인 조회 (카테고리 정보 JOIN)
+            // 1. 기본 템플릿 라인 조회
             const { data: tplData, error: tplError } = await supabase
                 .from('budget_template_lines')
                 .select('*, category:categories(id, name, parent_id), template:budget_templates!inner(household_id)')
@@ -44,31 +44,39 @@ export function useBudgets(year: number, month: number) {
 
             if (tplError) throw tplError;
 
-            // 1.5. 오버라이드 데이터 조회 (선택한 연/월)
+            // 1.5. 기간 오버라이드 데이터 조회 (선택한 연/월이 속하는 경우)
             const yearMonthStr = `${year}-${String(month).padStart(2, '0')}`;
             const { data: overrideData, error: overrideError } = await supabase
-                .from('budget_month_overrides')
-                .select('category_id, amount')
+                .from('budget_term_overrides')
+                .select('id, category_id, amount, start_year_month, end_year_month')
                 .eq('household_id', householdId)
-                .eq('year_month', yearMonthStr);
+                .lte('start_year_month', yearMonthStr)
+                .gte('end_year_month', yearMonthStr);
 
             if (overrideError) throw overrideError;
 
-            // 오버라이드를 Map으로 변환
-            const overridesMap = new Map<number, number>();
+            // 카테고리별 오버라이드 매핑
+            const overridesMap = new Map<number, any>();
             if (overrideData) {
-                overrideData.forEach(o => overridesMap.set(o.category_id, o.amount));
+                overrideData.forEach(o => overridesMap.set(o.category_id, o));
             }
 
-            // 템플릿 라인에 오버라이드 적용
             const templatesWithOverrides = (tplData as unknown as BudgetTemplateLine[]).map(tpl => {
                 if (overridesMap.has(tpl.category_id)) {
-                    return { ...tpl, monthly_amount: overridesMap.get(tpl.category_id)! };
+                    const ovr = overridesMap.get(tpl.category_id);
+                    return {
+                        ...tpl,
+                        monthly_amount: ovr.amount, // 현재 월의 유효 표시 한도
+                        override_amount: ovr.amount,
+                        override_id: ovr.id,
+                        start_year_month: ovr.start_year_month,
+                        end_year_month: ovr.end_year_month
+                    };
                 }
                 return tpl;
             });
 
-            // 2. 선택 월의 지출 실적 집계 (타임존 오차 방어를 위해 엄격한 문자열 경계 사용)
+            // 2. 당월 지출 실적 집계
             const sm = String(month).padStart(2, '0');
             const lastDay = new Date(year, month, 0).getDate();
             const startOfMonth = `${year}-${sm}-01T00:00:00.000Z`;
@@ -84,7 +92,6 @@ export function useBudgets(year: number, month: number) {
 
             if (entryError) throw entryError;
 
-            // 카테고리별 지출 합산
             const performances: Record<number, number> = {};
             if (entryData) {
                 entryData.forEach(entry => {
@@ -104,6 +111,44 @@ export function useBudgets(year: number, month: number) {
             };
         },
         enabled: !!householdId,
-        staleTime: 1000 * 60 * 5, // 5분 캐시
+        staleTime: 1000 * 60 * 5,
+    });
+}
+
+/** 예산(템플릿) 완전 삭제 Mutation */
+export function useDeleteBudgetTemplate() {
+    const queryClient = useQueryClient();
+    const { householdId } = useAuthStore();
+
+    return useMutation({
+        mutationFn: async (templateLineId: number) => {
+            const { error } = await supabase
+                .from('budget_template_lines')
+                .delete()
+                .eq('id', templateLineId);
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['budgets', householdId] });
+        }
+    });
+}
+
+/** 특정 기간의 예산 오버라이드 삭제 Mutation */
+export function useDeleteBudgetOverride() {
+    const queryClient = useQueryClient();
+    const { householdId } = useAuthStore();
+
+    return useMutation({
+        mutationFn: async (overrideId: number) => {
+            const { error } = await supabase
+                .from('budget_term_overrides')
+                .delete()
+                .eq('id', overrideId);
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['budgets', householdId] });
+        }
     });
 }
