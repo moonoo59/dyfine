@@ -64,12 +64,14 @@ export default function InvestmentsPage() {
         let failCount = 0;
 
         const newPrices = { ...updatedPrices };
+        const pricesToCommit: { security_id: number; price: number }[] = [];
 
         for (const h of holdings) {
             if (h.security.ticker) {
                 const currentPrice = await fetchTickerPrice(h.security.ticker);
                 if (currentPrice !== null && currentPrice > 0) {
                     newPrices[h.security.id] = currentPrice;
+                    pricesToCommit.push({ security_id: h.security.id, price: currentPrice });
                     successCount++;
                 } else {
                     failCount++;
@@ -78,11 +80,20 @@ export default function InvestmentsPage() {
         }
 
         setUpdatedPrices(newPrices);
-        setIsFetchingPrices(false);
 
-        if (successCount > 0) {
+        if (pricesToCommit.length > 0) {
+            try {
+                await updatePricesMutation.mutateAsync(pricesToCommit);
+                toast.success(`${successCount}개 종목의 갱신된 가격을 저장했습니다.`);
+            } catch (error: any) {
+                toast.error('가격 자동 저장 실패: ' + error.message);
+            }
+        } else if (successCount > 0) {
             toast.success(`${successCount}개 종목의 최신 가격을 불러왔습니다.`);
         }
+
+        setIsFetchingPrices(false);
+
         if (failCount > 0) {
             toast.error(`${failCount}개 종목의 가격을 불러오는 데 실패했습니다.`);
         }

@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
-import { useLoans, useLoanRates, useLoanLedger } from '@/hooks/queries/useLoans';
+import { useLoans, useLoanRates, useLoanLedger, useProcessLoanPayment } from '@/hooks/queries/useLoans';
 import { useAccounts } from '@/hooks/queries/useAccounts';
+import { useCategories } from '@/hooks/queries/useCategories';
 import { useCashFlowForecast } from '@/hooks/queries/useCashFlowForecast';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
@@ -42,6 +43,10 @@ export default function LoansPage() {
     const [selectedLoanId, setSelectedLoanId] = useState<number | null>(null);
     const selectedLoan = useMemo(() => loans?.find(l => l.id === selectedLoanId), [loans, selectedLoanId]);
 
+    const { data: categoriesData } = useCategories();
+    const categories = categoriesData || [];
+    const processPaymentMutation = useProcessLoanPayment();
+
     // 금리 이력 + 원장 조회
     const { data: rates } = useLoanRates(selectedLoanId);
     const { data: ledger } = useLoanLedger(selectedLoanId);
@@ -63,6 +68,12 @@ export default function LoansPage() {
     const [repaymentPriority, setRepaymentPriority] = useState<number | ''>('');
     const [hasGracePeriod, setHasGracePeriod] = useState(false);
     const [gracePeriodMonths, setGracePeriodMonths] = useState(0);
+
+    // 당월 상환 처리 모달 상태
+    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+    const [selectedPaymentRow, setSelectedPaymentRow] = useState<FutureScheduleRow | null>(null);
+    const [paymentAccountId, setPaymentAccountId] = useState<number | ''>('');
+    const [paymentCategoryId, setPaymentCategoryId] = useState<number | ''>('');
 
     // 삭제 확인 모달 상태
     const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
@@ -282,6 +293,50 @@ export default function LoansPage() {
         queryClient.invalidateQueries({ queryKey: ['loans', householdId] });
     };
 
+    /** 당월 납부 처리 준비 (모달 열기) */
+    const openPaymentModal = (row: FutureScheduleRow) => {
+        setSelectedPaymentRow(row);
+        setPaymentAccountId(selectedLoan?.linked_payment_account_id || '');
+        // "대출 이자" 카테고리를 기본으로 하고 싶지만 찾기 어려우므로 비워둡니다
+        setIsPaymentModalOpen(true);
+    };
+
+    /** 납부 처리 승인 */
+    const handleProcessPaymentSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedLoan || !selectedPaymentRow) return;
+
+        let cid = Number(paymentCategoryId);
+        if (isNaN(cid)) {
+            toast.error('지출 카테고리를 선택하세요.');
+            return;
+        }
+
+        try {
+            const scheduleDate = new Date(`${selectedPaymentRow.date}-01`);
+            const lastDay = new Date(scheduleDate.getFullYear(), scheduleDate.getMonth() + 1, 0).getDate();
+            const pStart = `${selectedPaymentRow.date}-01`;
+            const pEnd = `${selectedPaymentRow.date}-${String(lastDay).padStart(2, '0')}`;
+            const todayStr = new Date().toISOString().split('T')[0];
+
+            await processPaymentMutation.mutateAsync({
+                loanId: selectedLoan.id,
+                periodStart: pStart,
+                periodEnd: pEnd,
+                postingDate: todayStr,
+                interestAmount: selectedPaymentRow.interest,
+                principalAmount: selectedPaymentRow.principal,
+                accountId: paymentAccountId ? Number(paymentAccountId) : null,
+                categoryId: cid
+            });
+
+            setIsPaymentModalOpen(false);
+            setSelectedPaymentRow(null);
+        } catch (err: any) {
+            // mutation onError에서 토스트 띄움
+        }
+    };
+
     const handleDeleteLoan = async () => {
         if (!selectedLoan) return;
         setIsConfirmDeleteOpen(false);
@@ -461,6 +516,7 @@ export default function LoansPage() {
                                                         <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">이자</th>
                                                         <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">원금</th>
                                                         <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">잔액</th>
+                                                        <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">관리</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-gray-200 dark:divide-zinc-800">
@@ -471,6 +527,16 @@ export default function LoansPage() {
                                                             <td className="px-4 py-2 text-right text-red-600 dark:text-red-400">₩{row.interest.toLocaleString()}</td>
                                                             <td className="px-4 py-2 text-right text-gray-900 dark:text-white">₩{row.principal.toLocaleString()}</td>
                                                             <td className="px-4 py-2 text-right font-semibold text-gray-900 dark:text-white">₩{row.balance.toLocaleString()}</td>
+                                                            <td className="px-4 py-2 text-center">
+                                                                {row.month === 1 && (
+                                                                    <button
+                                                                        onClick={() => openPaymentModal(row)}
+                                                                        className="rounded bg-indigo-100 px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:hover:bg-indigo-900/50"
+                                                                    >
+                                                                        당월 납부
+                                                                    </button>
+                                                                )}
+                                                            </td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -662,6 +728,63 @@ export default function LoansPage() {
                 confirmLabel="삭제"
                 confirmVariant="danger"
             />
+
+            {/* 당월 납부 처리 모달 */}
+            {isPaymentModalOpen && selectedPaymentRow && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-zinc-900 max-h-[90vh] overflow-y-auto">
+                        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">당월 대출 상환 처리</h2>
+                        <form onSubmit={handleProcessPaymentSubmit} className="space-y-4">
+                            <div className="rounded-lg bg-gray-50 p-4 border border-gray-200 dark:bg-zinc-800 dark:border-zinc-700">
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">상환 요약 ({selectedPaymentRow.date})</p>
+                                <div className="flex justify-between items-center text-sm mb-1">
+                                    <span className="text-gray-500">납부 원금:</span>
+                                    <span className="font-medium text-gray-900 dark:text-white">₩{selectedPaymentRow.principal.toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm mb-1">
+                                    <span className="text-gray-500">납부 이자:</span>
+                                    <span className="font-medium text-red-600 dark:text-red-400">₩{selectedPaymentRow.interest.toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-base font-bold mt-3 pt-3 border-t border-gray-200 dark:border-zinc-700">
+                                    <span className="text-gray-900 dark:text-white">총 결제액:</span>
+                                    <span className="text-indigo-600 dark:text-indigo-400">₩{selectedPaymentRow.payment.toLocaleString()}</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">출금 계좌(선택)</label>
+                                <select value={paymentAccountId} onChange={e => setPaymentAccountId(Number(e.target.value) || '')}
+                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+                                    <option value="">계좌 미등록</option>
+                                    {accounts.map(acc => (
+                                        <option key={acc.id} value={acc.id}>{acc.name} (잔액: ₩{acc.balance.toLocaleString()})</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">지출 카테고리(선택)</label>
+                                <select value={paymentCategoryId} onChange={e => setPaymentCategoryId(Number(e.target.value) || '')} required={false}
+                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+                                    <option value="">카테고리 없음</option>
+                                    {categories.filter(c => c.category_type === 'expense').map(c => (
+                                        <option key={c.id} value={c.id}>{c.parent_id ? '└ ' : ''}{c.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="mt-6 flex justify-end gap-3">
+                                <button type="button" onClick={() => setIsPaymentModalOpen(false)} disabled={processPaymentMutation.isPending}
+                                    className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-zinc-800">취소</button>
+                                <button type="submit" disabled={processPaymentMutation.isPending}
+                                    className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50">
+                                    {processPaymentMutation.isPending ? '처리 중...' : '상환 승인'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

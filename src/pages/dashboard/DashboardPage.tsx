@@ -27,13 +27,16 @@ export default function DashboardPage() {
     const [selectedYear, setSelectedYear] = useState(now.getFullYear());
     const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
 
-    // 선택 월의 시작일/종료일 계산
-    const { startDate, endDate } = useMemo(() => {
-        const start = new Date(selectedYear, selectedMonth - 1, 1);
-        const end = new Date(selectedYear, selectedMonth, 0); // 해당 월 마지막 날
+    // 선택 월의 시작일/종료일 계산 (로컬 타임존 문제 우회: 엄격한 문자열 포맷팅 사용)
+    const { startDate, endDate, yearMonth } = useMemo(() => {
+        const sm = String(selectedMonth).padStart(2, '0');
+        const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
+        const start = `${selectedYear}-${sm}-01`;
+        const end = `${selectedYear}-${sm}-${String(lastDay).padStart(2, '0')}`;
         return {
-            startDate: start.toISOString().split('T')[0],
-            endDate: end.toISOString().split('T')[0],
+            startDate: start,
+            endDate: end,
+            yearMonth: `${selectedYear}-${sm}`
         };
     }, [selectedYear, selectedMonth]);
 
@@ -41,7 +44,6 @@ export default function DashboardPage() {
     const { data, isLoading } = useDashboardData(startDate, endDate);
     // 현금흐름 예측 데이터 (MonthlyFlowPanel용)
     const { data: cashFlowForecast } = useCashFlowForecast();
-    const yearMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
 
     // 월 변경 핸들러 (MonthPicker에서 호출)
     const handleMonthChange = (y: number, m: number) => {

@@ -106,3 +106,57 @@ export function useLoanLedger(loanId: number | null) {
         staleTime: 1000 * 60 * 5,
     });
 }
+
+/**
+ * 대출 당월 납부 처리(스케줄 진행) 뮤테이션
+ */
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-hot-toast';
+
+export function useProcessLoanPayment() {
+    const { user, householdId } = useAuthStore();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (params: {
+            loanId: number;
+            periodStart: string;
+            periodEnd: string;
+            postingDate: string;
+            interestAmount: number;
+            principalAmount: number;
+            accountId: number | null;
+            categoryId: number;
+        }) => {
+            if (!householdId || !user) throw new Error('User not authenticated');
+
+            const { data, error } = await supabase.rpc('process_loan_payment', {
+                p_household_id: householdId,
+                p_loan_id: params.loanId,
+                p_period_start: params.periodStart,
+                p_period_end: params.periodEnd,
+                p_posting_date: params.postingDate,
+                p_interest_amount: params.interestAmount,
+                p_principal_amount: params.principalAmount,
+                p_account_id: params.accountId,
+                p_category_id: params.categoryId,
+                p_user_id: user.id
+            });
+
+            if (error) throw error;
+            return data;
+        },
+        onSuccess: (_, params) => {
+            // 원장 데이터, 상환 목록 무효화
+            queryClient.invalidateQueries({ queryKey: ['loan_ledger', params.loanId] });
+            queryClient.invalidateQueries({ queryKey: ['loans', householdId] });
+            queryClient.invalidateQueries({ queryKey: ['accounts', householdId] });
+            queryClient.invalidateQueries({ queryKey: ['transactions', householdId] });
+            toast.success('당월 대출 상환이 처리되었습니다.');
+        },
+        onError: (error: any) => {
+            console.error('Failed to process loan payment:', error);
+            toast.error(error.message || '대출 상환 처리에 실패했습니다.');
+        }
+    });
+}

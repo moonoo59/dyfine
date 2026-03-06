@@ -34,22 +34,24 @@ export function useAllowanceBudgetFromTransactions(memberName: string, yearMonth
         queryFn: async () => {
             if (!householdId || !memberName) throw new Error('Missing params');
 
-            // 해당 월의 시작일/종료일 계산
-            const startDate = `${yearMonth}-01`;
+            // 해당 월의 시작일/종료일 계산 (안정적인 문자열 방식)
             const [y, m] = yearMonth.split('-').map(Number);
-            const endDate = new Date(y, m, 0).toISOString().slice(0, 10); // 말일
+            const lastDay = new Date(y, m, 0).getDate();
+            const startDate = `${yearMonth}-01T00:00:00.000Z`;
+            const endDate = `${yearMonth}-${String(lastDay).padStart(2, '0')}T23:59:59.999Z`;
 
             // 카테고리명에 "용돈"이 포함되고, 구성원 이름도 포함된 거래를 조회
             // 예: "덕원 용돈", "여선 용돈"
             const { data, error } = await supabase
                 .from('transaction_entries')
                 .select(`
-                    id, occurred_at, amount, description, entry_type,
-                    category:categories(id, name)
+                    id, occurred_at, entry_type, memo,
+                    category:categories(id, name),
+                    lines:transaction_lines(amount)
                 `)
                 .eq('household_id', householdId)
                 .gte('occurred_at', startDate)
-                .lte('occurred_at', endDate + 'T23:59:59')
+                .lte('occurred_at', endDate)
                 .not('category_id', 'is', null);
 
             if (error) throw error;
@@ -62,8 +64,9 @@ export function useAllowanceBudgetFromTransactions(memberName: string, yearMonth
 
             // 금액 합산 (입금/이체 등 양수 금액 합)
             const total = allowanceTxns.reduce((sum: number, tx: any) => {
-                // amount가 양수이면 용돈 수령, 음수이면 용돈 지급
-                return sum + Math.abs(tx.amount || 0);
+                const lineAmountSum = tx.lines?.reduce((ls: number, line: any) => ls + Math.abs(line.amount || 0), 0) || 0;
+                // amount가 양수이면 용돈 수령, 음수이면 용돈 지급 - 여기서 Math.abs는 두 방향 모두 절대값 합산
+                return sum + lineAmountSum;
             }, 0);
 
             return { total, transactions: allowanceTxns };
@@ -212,13 +215,20 @@ export function useAllowanceStats(memberName: string, monthsCount: number = 6) {
                 months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
             }
 
-            const startDate = new Date(now.getFullYear(), now.getMonth() - monthsCount + 1, 1).toISOString().split('T')[0];
-            const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+
+
+            const startMonthStr = months[0];
+            const endMonthStr = months[months.length - 1];
+            const [ey, em] = endMonthStr.split('-').map(Number);
+            const lastDay = new Date(ey, em, 0).getDate();
+
+            const startDate = `${startMonthStr}-01T00:00:00.000Z`;
+            const endDate = `${endMonthStr}-${String(lastDay).padStart(2, '0')}T23:59:59.999Z`;
 
             // 3. 거래 내역 조회
             const { data, error } = await supabase
                 .from('transaction_entries')
-                .select(`occurred_at, amount, category:categories(id, name)`)
+                .select(`occurred_at, category:categories(id, name), lines:transaction_lines(amount)`)
                 .eq('household_id', householdId)
                 .gte('occurred_at', startDate)
                 .lte('occurred_at', endDate)
@@ -240,7 +250,8 @@ export function useAllowanceStats(memberName: string, monthsCount: number = 6) {
                 const tDate = new Date(tx.occurred_at);
                 const ym = `${tDate.getFullYear()}-${String(tDate.getMonth() + 1).padStart(2, '0')}`;
                 if (budgetByMonth[ym] !== undefined) {
-                    budgetByMonth[ym] += Math.abs(tx.amount || 0);
+                    const lineSum = tx.lines?.reduce((ls: number, l: any) => ls + Math.abs(l.amount || 0), 0) || 0;
+                    budgetByMonth[ym] += lineSum;
                 }
             });
 

@@ -68,9 +68,11 @@ export function useBudgets(year: number, month: number) {
                 return tpl;
             });
 
-            // 2. 선택 월의 지출 실적 집계
-            const startOfMonth = new Date(year, month - 1, 1).toISOString();
-            const endOfMonth = new Date(year, month, 0, 23, 59, 59).toISOString();
+            // 2. 선택 월의 지출 실적 집계 (타임존 오차 방어를 위해 엄격한 문자열 경계 사용)
+            const sm = String(month).padStart(2, '0');
+            const lastDay = new Date(year, month, 0).getDate();
+            const startOfMonth = `${year}-${sm}-01T00:00:00.000Z`;
+            const endOfMonth = `${year}-${sm}-${String(lastDay).padStart(2, '0')}T23:59:59.999Z`;
 
             const { data: entryData, error: entryError } = await supabase
                 .from('transaction_entries')
